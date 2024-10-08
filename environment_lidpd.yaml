@@ -1,0 +1,34 @@
+name: LID_PD
+channels:
+  - defaults
+  - anaconda
+  - conda-forge
+dependencies:
+  - pip
+  - python=3.9.18
+  - readline
+  - setuptools
+  - tk
+  - wheel
+  - cudatoolkit
+  - cudnn
+  - pip:
+      - numpy
+      - scipy
+      - matplotlib
+      - mne
+      - argparse
+      - mne_icalabel
+      - pyyaml
+      - psutil
+      - scikit-learn
+      - seaborn
+      - defusedxml
+      - antropy
+      - networkx
+      - dyconnmap
+      - mne_connectivity
+      - protobuf==3.20
+      - onnxruntime
+      - missingno
+      - pandas
