@@ -8,7 +8,7 @@ import numpy as np
 # The pre and post filter signal is compared in a plot
 
 # Definisci il percorso del file
-percorso_file = "D:/TESI/lid-data-samples/lid-data-samples/Dataset/DYS/PD012.mff/PD012_parziale.fif"
+percorso_file = "D:/TESI/lid-data-samples/lid-data-samples/Dataset/DYS/PD012.mff/PD012_cropped.fif"
 
 # Carica il file con preload=True
 raw = mne.io.read_raw_fif(percorso_file, preload=True, verbose=False)

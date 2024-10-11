@@ -8,6 +8,6 @@ percorso_file = "D:/TESI/lid-data-samples/lid-data-samples/Dataset/DYS/PD012.mff
 raw = mne.io.read_raw_fif(percorso_file, preload=True, verbose=False)
 
 # Visualizza la disposizione degli elettrodi
-raw.plot_sensors(show=True)
+raw.plot_sensors(show=True, show_names=True)
 plt.title("Disposizione degli elettrodi")
 plt.show()

@@ -1,20 +1,25 @@
 #!/bin/bash
 #SBATCH --job-name='lid_pd_1'
-#SBATCH -o /home/gianpaolo.palo/MEDITECH/BSP/shared_projects/lid_pd/outfile_LID_PD_1
-#SBATCH -e /home/gianpaolo.palo/MEDITECH/BSP/shared_projects/lid_pd/errfile_LID_PD_1
+#SBATCH -o /home/lorenzo.spampinato/MEDITECH/BSP/projects/lid_pd/outfile_LID_PD_1
+#SBATCH -e /home/lorenzo.spampinato/MEDITECH/BSP/projects/lid_pd/errfile_LID_PD_1
 #SBATCH -N1
-#SBATCH -p compute
-#SBATCH --time 10-00:00:00
+#SBATCH -p gpu
+#SBATCH --time 0-00:10:00
 
 # Specify the following variables
 ENV_NAME="LID_PD"
-PWD_APP="/home/gianpaolo.palo/MEDITECH/BSP"
-IMAGE_PATH="/home/gianpaolo.palo/MEDITECH/BSP/singularity_img/miniconda3_lidpd.sif"
+PWD_APP="/home/lorenzo.spampinato/scratch/0_lid-pd/"
+IMAGE_PATH="/home/lorenzo.spampinato/MEDITECH/BSP/singularity_img/miniconda3_lidpd.sif"
 
 DATA_PATH= "D://TESI//lid-data-samples//lid-data-samples//Dataset"
 LABEL_PATH="D://TESI//lid-data-samples//lid-data-samples//Labels"
 SAVE_PATH="D://TESI//lid-data-samples//lid-data-samples//Results_prova"
 INFO_PATH="D://TESI//lid-data-samples//lid-data-samples//Results_prova"
+
+#DATA_PATH="/app/data/lid_pd/Dataset"
+#LABEL_PATH="/app/data/lid_pd/Labels"
+#SAVE_PATH="/app/data/lid_pd/Results"
+#INFO_PATH="/app/data/lid_pd/Results"
 
 RUN_FEATURES=true
 ONLY_CLASS="DYS"
