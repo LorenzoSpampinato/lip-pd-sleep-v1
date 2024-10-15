@@ -1,3 +1,3 @@
-from data_processing.filt_ds import filt_ds
-from data_processing.stratify_split import stratify_split
-from data_processing.train_val_test_split import train_val_test_split
+from data_processing.filt_ds import DataFrameFilter
+from data_processing.stratify_split import StratifiedSplitter
+from data_processing.train_val_test_split import DatasetSplitter

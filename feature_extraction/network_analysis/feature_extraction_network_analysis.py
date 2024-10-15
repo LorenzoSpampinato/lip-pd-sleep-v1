@@ -1,35 +1,70 @@
 import numpy as np
 import networkx as nx
-import mne
-from utilities.adjacency_matrix import adjacency_matrix
+from utilities.adjacency_matrix import EEGAdjacencyMatrix
 
-def feature_extraction_network_analysis(epochs, ch_reg):
-    # epochs: instance of mne.Epochs
-    # ch_reg: set with channel names divided per brain region
 
-    feats = {'58 Degree Centrality', '59 Betweenness Centrality',
-             '60 Closeness Centrality', '61 Clustering Coefficient'}
+class NetworkFeatureExtractor:
+    def __init__(self, epochs, ch_reg):
+        """
+        Initializes the feature extractor with the necessary parameters.
 
-    features_matrix = np.zeros([len(ch_reg), len(feats), len(epochs)])
-    # Cycle on brain region
-    for nr, r in enumerate(ch_reg):
-        epochs_chs = epochs.copy()
-        chs = [ch.strip() for ch in r.split('=')[1].split(',')]
-        epochs_chs.pick(picks=chs, verbose=False)
-        # Cycle on epochs
-        for t_epc in range(len(epochs_chs)):
-            # Isolating each epoch i.e., 30-second samples of signals
-            x_sig_30 = epochs_chs.get_data()[t_epc, :, :]
-            ad_m_bin = adjacency_matrix(x_sig_30)
-            graph_m = nx.from_numpy_array(ad_m_bin)
+        Parameters:
+        - epochs: mne.Epochs object (contains EEG/PSG data)
+        - ch_reg: Dictionary of channel names divided by brain region
+        """
+        self.epochs = epochs
+        self.ch_reg = ch_reg
+        self.feats = sorted(['58 Degree Centrality', '59 Betweenness Centrality',
+                             '60 Closeness Centrality', '61 Clustering Coefficient'])
+        self.features_matrix = np.zeros([len(self.ch_reg), len(self.feats), len(self.epochs)])
 
-            # Degree Centrality
-            features_matrix[nr, 0, t_epc] = np.mean(np.array(list(nx.degree_centrality(graph_m).values())))
-            # Betweenness Centrality
-            features_matrix[nr, 1, t_epc] = np.mean(np.array(list(nx.betweenness_centrality(graph_m).values())))
-            # Closeness Centrality
-            features_matrix[nr, 2, t_epc] = np.mean(np.array(list(nx.closeness_centrality(graph_m).values())))
-            # Clustering Coefficient
-            features_matrix[nr, 3, t_epc] = np.mean(np.array(list(nx.clustering(graph_m).values())))
+    def extract_features(self):
+        """
+        Extracts network features from the EEG epochs for each brain region.
 
-    return features_matrix, sorted(feats)
+        Returns:
+        - features_matrix: A matrix of extracted features.
+        - feats: List of feature names.
+        """
+        # Iterate over brain regions
+        for nr, region in enumerate(self.ch_reg):
+            chs = [ch.strip() for ch in region.split('=')[1].split(',')]
+            epochs_chs = self.epochs.copy().pick(picks=chs, verbose=False)
+
+            # Iterate over epochs
+            for t_epc in range(len(epochs_chs)):
+                x_sig_30 = epochs_chs.get_data()[t_epc, :, :]
+                adjacency_matrix_extractor = EEGAdjacencyMatrix()
+                ad_m_bin = adjacency_matrix_extractor.process(x_sig_30)
+                graph_m = nx.from_numpy_array(ad_m_bin)
+
+                # Extract network-based features
+                self.features_matrix[nr, :, t_epc] = self.extract_network_features(graph_m)
+
+        return self.features_matrix, self.feats
+
+    def extract_network_features(self, graph_m):
+        """
+        Extracts network-related features from the graph generated for a given epoch.
+
+        Parameters:
+        - graph_m: Graph created from adjacency matrix of an epoch.
+
+        Returns:
+        - features_vector: A vector of network-related features.
+        """
+        features_vector = np.zeros(len(self.feats))
+
+        # Degree Centrality
+        features_vector[0] = np.mean(list(nx.degree_centrality(graph_m).values()))
+
+        # Betweenness Centrality
+        features_vector[1] = np.mean(list(nx.betweenness_centrality(graph_m).values()))
+
+        # Closeness Centrality
+        features_vector[2] = np.mean(list(nx.closeness_centrality(graph_m).values()))
+
+        # Clustering Coefficient
+        features_vector[3] = np.mean(list(nx.clustering(graph_m).values()))
+
+        return features_vector
