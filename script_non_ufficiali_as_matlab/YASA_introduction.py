@@ -5,7 +5,14 @@ import mne
 from mne import channel_type
 
 # Path of the file with the hypnogram from hypnogram_definition
-hypnogram_file_path = "D:/TESI/lid-data-samples/lid-data-samples/Labels/DNV\PD005.npy"
+hypnogram_file_path = "D:/TESI/lid-data-samples/lid-data-samples/Labels/CTL\PD009.npy"
+
+# Carica i dati dell'ipnogramma
+hypnogram_data = np.load(hypnogram_file_path)
+
+# Ottieni la forma dei dati dell'ipnogramma
+hypnogram_shape = hypnogram_data.shape
+print("Dimensioni dell'ipnogramma:", hypnogram_shape)
 
 # Definisci il percorso del file
 percorso_file = "D:/TESI/lid-data-samples/lid-data-samples/Dataset/DYS/PD012.mff/signal1.fif"
