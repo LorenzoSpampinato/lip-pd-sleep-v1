@@ -19,15 +19,15 @@ class EEGRegionsDivider:
                                    139, 127, 138]))
 
     def get_all_regions(self):
-        """Returns the regions with their respective channels."""
-        return {
-            '1_Fp_chs': self._format_channels(self.fp),
-            '2_F_chs': self._format_channels(self.f),
-            '3_C_chs': self._format_channels(self.c[:-1]) + ', Vertex Reference',  # Adds "Vertex Reference"
-            '4_T_chs': self._format_channels(self.t),
-            '5_P_chs': self._format_channels(self.p),
-            '6_O_chs': self._format_channels(self.o)
-        }
+        """Returns the regions with their respective channels in a single string for each region."""
+        return [
+            f"1_Fp_chs = {self._format_channels(self.fp)}",
+            f"2_F_chs = {self._format_channels(self.f)}",
+            f"3_C_chs = {self._format_channels(self.c[:-1])}, Vertex Reference",  # Adds "Vertex Reference"
+            f"4_T_chs = {self._format_channels(self.t)}",
+            f"5_P_chs = {self._format_channels(self.p)}",
+            f"6_O_chs = {self._format_channels(self.o)}"
+        ]
 
     def get_index_channels(self):
         """Returns all channel indices sorted."""

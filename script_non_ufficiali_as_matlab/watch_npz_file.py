@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 # Path to your .npz file
-npz_file_path = r"D:\TESI\lid-data-samples\lid-data-samples\Results\Features\DYS\PD012\\PD012_all_feats.npz"
+npz_file_path = r"D:\TESI\lid-data-samples\lid-data-samples\Results\Features\DYS\PD012\\PD012prova_all_feats.npz"
 
 # Load the .npz file
 npz_data = np.load(npz_file_path)

@@ -4,6 +4,7 @@ from scipy.stats import skew, kurtosis, mstats
 import antropy as ant
 
 
+
 class SingleChannelFeatureExtractor:
     def __init__(self, epochs, fs, ch_reg, win_sec=5):
         """
@@ -49,28 +50,34 @@ class SingleChannelFeatureExtractor:
         - features_matrix: A matrix of extracted features.
         - feats: List of feature names.
         """
+
         # Iterate over brain regions
         for nr, region in enumerate(self.ch_reg):
             chs = [ch.strip() for ch in region.split('=')[1].split(',')]
+            print("Channel picks:", chs)  # Debugging
             epochs_chs = self.epochs.copy().pick(picks=chs, verbose=False)
             features_matrix_reg = np.zeros([len(chs), len(self.feats), len(self.epochs)])
-
+            print('epochs_chs:', epochs_chs)  # Debugging
             # Iterate over channels within the region
             for nch, ch in enumerate(chs):
                 x_sig_30 = epochs_chs.get_data()[:, nch, :]
-
+                print("nch: ", nch)
                 # PSD calculation using Welch method
                 f, psd = welch(x=(x_sig_30 - np.mean(x_sig_30, axis=-1)[:, np.newaxis]),
                                fs=self.fs, window='hamming', nperseg=int(self.win_sec * self.fs),
+                               noverlap= int((self.win_sec * self.fs)/2),
                                average='median', axis=-1)
+
+
                 abs_psd = np.abs(psd)
                 mean_psd = np.mean(abs_psd, axis=-1)
 
+
                 # Frequency-domain feature extraction
-                features_matrix_reg[nch] = self.extract_frequency_features(f, abs_psd, mean_psd)
+                features_matrix_reg[nch,0:27,:] = self.extract_frequency_features(f, abs_psd, mean_psd)
 
                 # Time-domain feature extraction
-                features_matrix_reg[nch] = self.extract_time_features(x_sig_30, features_matrix_reg[nch])
+                features_matrix_reg[nch,27:45,:] = self.extract_time_features(x_sig_30, features_matrix_reg[nch])
 
             # Averaging across channels for each region
             self.features_matrix[nr, :, :] = np.mean(features_matrix_reg, axis=0)
@@ -89,28 +96,28 @@ class SingleChannelFeatureExtractor:
         Returns:
         - features_vector: A vector of frequency-domain features for a single channel.
         """
-        features_vector = np.zeros(len(self.feats))
+        features_frequency_vector = np.zeros([27, len(self.epochs)])
 
         # Spectral energy, Relative power bands, and Power ratios
         spec_en, p_rel, p_rat = self.spectral(f, abs_psd)
-        features_vector[0] = spec_en
-        features_vector[1:12] = p_rel
-        features_vector[12:18] = p_rat
+        features_frequency_vector[0,:] = spec_en
+        features_frequency_vector[1:12,:] = p_rel
+        features_frequency_vector[12:18,:] = p_rat
 
         # Spectral mean, variance, skewness, kurtosis
-        features_vector[18] = mean_psd
-        features_vector[19] = np.var(abs_psd, axis=-1)
-        features_vector[20] = skew(abs_psd, axis=-1)
-        features_vector[21] = kurtosis(abs_psd, axis=-1)
+        features_frequency_vector[18,:] = mean_psd
+        features_frequency_vector[19,:] = np.var(abs_psd, axis=-1)
+        features_frequency_vector[20,:] = skew(abs_psd, axis=-1)
+        features_frequency_vector[21,:] = kurtosis(abs_psd, axis=-1)
 
         # Spectral centroid, crest factor, flatness, rolloff, spread
-        features_vector[22] = np.sum(f * abs_psd, axis=-1) / spec_en
-        features_vector[23] = np.max(abs_psd, axis=-1) / mean_psd
-        features_vector[24] = mstats.gmean(abs_psd, axis=-1) / mean_psd
-        features_vector[25] = self.rolloff(f, abs_psd)
-        features_vector[26] = np.sum(((f - features_vector[22]) ** 2) * abs_psd, axis=-1) / spec_en
+        features_frequency_vector[22,:] = np.sum(f * abs_psd, axis=-1) / spec_en
+        features_frequency_vector[23,:] = np.max(abs_psd, axis=-1) / mean_psd
+        features_frequency_vector[24,:] = mstats.gmean(abs_psd, axis=-1) / mean_psd
+        features_frequency_vector[25,:] = self.rolloff(f, abs_psd)
+        features_frequency_vector[26,:] = np.sum(((f - features_frequency_vector[22, :, np.newaxis]) ** 2)* abs_psd, axis=-1) / spec_en
 
-        return features_vector
+        return features_frequency_vector
 
     def extract_time_features(self, x_sig_30, features_vector):
         """
@@ -123,34 +130,37 @@ class SingleChannelFeatureExtractor:
         Returns:
         - features_vector: Updated vector of time-domain features.
         """
+        features_time_vector = np.zeros([18, len(self.epochs)])
         # Mean, variance, skewness, kurtosis
-        features_vector[27] = np.mean(x_sig_30, axis=-1)
-        features_vector[28] = np.var(x_sig_30, axis=-1)
-        features_vector[29] = skew(x_sig_30, axis=-1)
-        features_vector[30] = kurtosis(x_sig_30, axis=-1)
+        features_time_vector[0,:] = np.mean(x_sig_30, axis=-1)
+        features_time_vector[1,:] = np.var(x_sig_30, axis=-1)
+        features_time_vector[2,:] = skew(x_sig_30, axis=-1)
+        features_time_vector[3,:] = kurtosis(x_sig_30, axis=-1)
 
         # Zero-crossings and Hjorth parameters
-        features_vector[31] = ant.num_zerocross(x_sig_30, axis=-1)
-        features_vector[32], features_vector[33] = ant.hjorth_params(x_sig_30, axis=-1)
+        features_time_vector[4,:] = ant.num_zerocross(x_sig_30, axis=-1)
+        features_time_vector[5,:], features_vector[6,:] = ant.hjorth_params(x_sig_30, axis=-1)
 
         # Entropy measures
-        features_vector[34] = ant.spectral_entropy(x_sig_30, sf=self.fs, method='welch',
+        features_time_vector[7,:] = ant.spectral_entropy(x_sig_30, sf=self.fs, method='welch',
                                                    nperseg=int(self.win_sec * self.fs), normalize=True, axis=-1)
-        features_vector[35] = self.renyi_entropy(x_sig_30,  nperseg=int(self.win_sec * self.fs))
-        features_vector[36] = [ant.app_entropy(x) for x in x_sig_30]
-        features_vector[37] = [ant.sample_entropy(x) for x in x_sig_30]
-        features_vector[38] = [ant.svd_entropy(x, normalize=True) for x in x_sig_30]
-        features_vector[39] = [ant.perm_entropy(x, normalize=True) for x in x_sig_30]
+        features_time_vector[8,:] = self.renyi_entropy(x_sig_30,  nperseg=int(self.win_sec * self.fs))
+        features_time_vector[9,:] = [ant.app_entropy(x) for x in x_sig_30]
+        features_time_vector[10,:] = [ant.sample_entropy(x) for x in x_sig_30]
+        features_time_vector[11,:] = [ant.svd_entropy(x, normalize=True) for x in x_sig_30]
+        features_time_vector[12,:] = [ant.perm_entropy(x, normalize=True) for x in x_sig_30]
+        #mobj = eh.MSobject('FuzzEn', m=1, tau=1, Fx="default", r=(0.15 * np.std(x_sig_30[0]), 3))
+        #features_vector[40] = [msen for msen, _ in (eh.MSEn(x, Mbjx=mobj, Scales=3, Methodx='coarse') for x in x_sig_30)]
 
         # Complexity and fractal dimension measures
-        features_vector[40] = [ant.detrended_fluctuation(x) for x in x_sig_30]
-        features_vector[41] = [ant.lziv_complexity(''.join(map(str, np.where(x > np.median(x), 1, 0))),
+        features_time_vector[13,:] = [ant.detrended_fluctuation(x) for x in x_sig_30]
+        features_time_vector[14,:] = [ant.lziv_complexity(''.join(map(str, np.where(x > np.median(x), 1, 0))),
                                                    normalize=True) for x in x_sig_30]
-        features_vector[42] = ant.katz_fd(x_sig_30, axis=-1)
-        features_vector[43] = [ant.higuchi_fd(x.astype(np.float64)) for x in x_sig_30]
-        features_vector[44] = ant.petrosian_fd(x_sig_30, axis=-1)
+        features_time_vector[15,:] = ant.katz_fd(x_sig_30, axis=-1)
+        features_time_vector[16,:] = [ant.higuchi_fd(x.astype(np.float64)) for x in x_sig_30]
+        features_time_vector[17,:] = ant.petrosian_fd(x_sig_30, axis=-1)
 
-        return features_vector
+        return features_time_vector
 
     def renyi_entropy(self, x, nperseg, normalize=True):
         _, psd = welch(x, self.fs, nperseg=nperseg, axis=-1)

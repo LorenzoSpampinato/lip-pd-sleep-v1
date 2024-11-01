@@ -35,7 +35,7 @@ class EEGDataFrameGenerator:
             return
 
         feature_files = glob.glob(os.path.join(self.save_path, 'Features') + '/*/*/*.npz')
-
+        print("read npz")
         for feat_file in feature_files:
             self._process_feature_file(feat_file)
 
@@ -46,12 +46,21 @@ class EEGDataFrameGenerator:
         Parameters:
         - feat_file: Path of the EEG feature file in `.npz` format.
         """
+        print("start loading")
+        features_data = []
+        feature_matrix = None
+        group = []
+        subject_id = []
+        brain_regions = []
+        stages = []
+        feature_names = []
+
         # Load the EEG feature data
         features_data = np.load(feat_file)['data'].squeeze()
-
+        print("end loading")
         # Aggregate features from different brain regions
         feature_matrix = np.concatenate(features_data, axis=1)
-
+        print("end aggregation")
         # Extract groups, subjects, brain regions, and stages (if present)
         group = self._extract_group(feat_file)
         subject_id = self._extract_subject_id(feat_file)
@@ -59,17 +68,17 @@ class EEGDataFrameGenerator:
 
         # If sleep stages should be included
         stages = self._extract_sleep_stages(feat_file) if self.aggregate_labels else ['/'] * np.size(features_data, 2)
-
+        print("end extraction")
         # Create the MultiIndex for the DataFrame rows
         row_labels = pd.MultiIndex.from_product([group, subject_id, brain_regions, stages],
                                                 names=['Group', 'Subject', 'Brain region', 'Stage'])
-
+        print("end MultiIndex")
         # Extract feature names
         feature_names = self._extract_feature_names(feat_file)
-
+        print("start Dataframe")
         # Create the DataFrame
         df = pd.DataFrame(feature_matrix.T, index=row_labels, columns=feature_names)
-
+        print("end Dataframe")
         # Save the DataFrame as CSV
         self._save_dataframe(feat_file, df)
 

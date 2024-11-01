@@ -5,27 +5,27 @@ def get_args():
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--data_path", type=str,
                         help='Absolute path to the folder containing PSG data',
-                        default=r'D:\TESI\lid-data-samples\lid-data-samples\Dataset')
+                        default=r'./Dataset')
     parser.add_argument("--label_path", type=str,
                         help='Absolute path to the folder containing the labels',
-                        default=r'D:\TESI\lid-data-samples\lid-data-samples/Labels')
+                        default=r'./Labels')
     parser.add_argument("--save_path", type=str,
                         help='Absolute path where to save the pre-processed PSG data',
-                        default=r'D:\TESI\lid-data-samples\lid-data-samples/Results_prova')
+                        default=r'./Results')
     parser.add_argument("--info_path", type=str,
                         help='Absolute path where to save the logfiles',
-                        default=r'D:\TESI\lid-data-samples\lid-data-samples/Results_prova')
+                        default=r'./Results')
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--run_hypnogram", type=bool,
                         help='Flag to run hypnogram definition',
-                        default=True)
+                        default=False)
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--run_features", type=bool,
                         help='Flag to run feature extraction',
-                        default=True)
+                        default=False)
     parser.add_argument("--run_preprocess", type=bool,
                         help='Flag to run pre-processing',
-                        default=True)
+                        default=False)
     parser.add_argument("--run_bad_interpolation", type=bool,
                         help='Flag to run bad channels interpolation',
                         default=False)
@@ -41,7 +41,7 @@ def get_args():
                         default=True)
     parser.add_argument("--aggregate_labels", type=bool,
                         help='Flag to whether consider labels during dataframe definition',
-                        default=False)
+                        default=True)
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--run_nan_check", type=bool,
                         help='Flag to run check on NaN values among extracted features',

@@ -1,36 +1,43 @@
 #!/bin/bash
 #SBATCH --job-name='lid_pd_1'
-#SBATCH -o /home/lorenzo.spampinato/MEDITECH/BSP/projects/lid_pd/outfile_LID_PD_1
-#SBATCH -e /home/lorenzo.spampinato/MEDITECH/BSP/projects/lid_pd/errfile_LID_PD_1
+#SBATCH -o /home/lorenzo.spampinato/scratch/0_lid-pd/outfile_lid_pd_1
+#SBATCH -e /home/lorenzo.spampinato/scratch/0_lid-pd/errfile_lid_pd_1
 #SBATCH -N1
-#SBATCH -p gpu
-#SBATCH --time 0-00:10:00
+#SBATCH -p compute
+
+#SBATCH --time 3-00:00:00
 
 # Specify the following variables
 ENV_NAME="LID_PD"
-VOLUME= "BSP/data/"
-PWD_APP="/home/lorenzo.spampinato/scratch/0_lid-pd/"#working directory
-IMAGE_PATH="/home/lorenzo.spampinato/MEDITECH/BSP/singularity_img/miniconda3_lidpd.sif" #dove si trova singularity image
+VOLUME="/home/lorenzo.spampinato/MEDITECH/BSP/data/lid_pd/Dataset"
+#VOLUME="/home/lorenzo.spampinato/MEDITECH/BSP/data/lid_pd/Results/Preprocessed_BIN"
+PWD_APP="/home/lorenzo.spampinato/scratch/0_lid-pd/"
+IMAGE_PATH="/home/lorenzo.spampinato/MEDITECH/BSP/singularity_img/miniconda3_lidpd.sif"
 
-DATA_PATH= "D://TESI//lid-data-samples//lid-data-samples//Dataset"
-LABEL_PATH="D://TESI//lid-data-samples//lid-data-samples//Labels"
-SAVE_PATH="D://TESI//lid-data-samples//lid-data-samples//Results_prova"
-INFO_PATH="D://TESI//lid-data-samples//lid-data-samples//Results_prova"
+DATA_PATH="/home/lorenzo.spampinato/MEDITECH/BSP/data/lid_pd/Dataset"
+#DATA_PATH="/home/lorenzo.spampinato/MEDITECH/BSP/data/lid_pd/Results/Preprocessed_BIN"
+LABEL_PATH="/home/lorenzo.spampinato/MEDITECH/BSP/data/lid_pd/Labels"
+SAVE_PATH="/home/lorenzo.spampinato/MEDITECH/BSP/data/lid_pd/Results"
+INFO_PATH="/home/lorenzo.spampinato/MEDITECH/BSP/data/lid_pd/Results"
 
-#DATA_PATH="/app/data/lid_pd/Dataset"
-#LABEL_PATH="/app/data/lid_pd/Labels"
-#SAVE_PATH="/app/data/lid_pd/Results"
-#INFO_PATH="/app/data/lid_pd/Results"
 
-RUN_FEATURES=true
+RUN_FEATURES=false
 ONLY_CLASS="DYS"
 ONLY_PATIENT="PD012"
 
 # Specify the python scripts to run
-PYTHON_SCRIPT="C:\Users\Lorenzo\PycharmProjects\lid-pd-sleep-v0"
-PYTHON_ARGS="--data_path $DATA_PATH --label_path $LABEL_PATH --save_path $SAVE_PATH --info_path $INFO_PATH --run_features $RUN_FEATURES --only_class $ONLY_CLASS --only_patient $ONLY_PATIENT"
+#PYTHON_SCRIPT="C:\Users\Lorenzo\PycharmProjects\lid-pd-sleep-v0"
+PYTHON_SCRIPT="lidpd_main.py"
+PYTHON_ARGS="--data_path $DATA_PATH --label_path $LABEL_PATH --save_path $SAVE_PATH --info_path $INFO_PATH --run_features ${RUN_FEATURES} --only_class ${ONLY_CLASS} --only_patient ${ONLY_PATIENT}"
 
-srun singularity exec -B $VOLUME=/data/, $VOLUME= /output/ $PWD_APP:/app/ --pwd /app $IMAGE_PATH \
-bash -c "source /opt/conda/etc/profile.d/conda.sh && \
-conda activate $ENV_NAME && \
-python $PYTHON_SCRIPT $PYTHON_ARGS"
+#srun singularity exec -B $VOLUME:/Preprocessed_BIN/,$PWD_APP:/app/ --pwd /app $IMAGE_PATH \
+#srun singularity exec -B ${VOLUME}:/Dataset, ${PWD_APP}:/app --pwd /app ${IMAGE_PATH}
+#bash -c "source /opt/conda/etc/profile.d/conda.sh && \
+#conda activate $ENV_NAME && \
+#python $PYTHON_SCRIPT $PYTHON_ARGS"
+srun singularity exec \
+    -B ${VOLUME}:/Dataset,${PWD_APP}:/app,${SAVE_PATH}:/Results,${LABEL_PATH}:/Labels \
+    --pwd /app ${IMAGE_PATH} \
+    bash -c "source /opt/conda/etc/profile.d/conda.sh && \
+    conda activate ${ENV_NAME} && \
+    python /app/${PYTHON_SCRIPT} --data_path /Dataset --label_path /Labels --save_path /Results --info_path /Results --run_features ${RUN_FEATURES} --only_class ${ONLY_CLASS} --only_patient ${ONLY_PATIENT}"

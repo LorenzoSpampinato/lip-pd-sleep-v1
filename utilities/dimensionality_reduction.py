@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-from data_processing.filt_ds import filt_ds
+from data_processing.filt_ds import DataFrameFilter
 
 
 class DimensionalityReducer:
@@ -30,9 +30,8 @@ class DimensionalityReducer:
             return
 
         train_df, val_df, test_df = self._load_data()
-        train_filt, val_filt, test_filt = filt_ds(train_df, val_df, test_df,
-                                                  only_stage=self.only_stage,
-                                                  only_brain_region=self.only_brain_region)
+        train_filt, val_filt, test_filt = DataFrameFilter(train_df, val_df, test_df).filter_dfs(
+            only_stage=self.only_stage, only_brain_region=self.only_brain_region)
         self._apply_pca_and_save(train_filt, val_filt, test_filt)
 
     def _load_data(self):

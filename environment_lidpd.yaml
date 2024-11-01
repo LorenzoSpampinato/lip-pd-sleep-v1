@@ -12,11 +12,13 @@ dependencies:
   - wheel
   - cudatoolkit
   - cudnn
+  - edfio  # Aggiunto il pacchetto edfio tramite conda-forge
   - pip:
       - numpy
       - scipy
       - matplotlib
       - mne
+      #- EntropyHub # Aggiunto il pacchetto EntropyHub
       - argparse
       - mne_icalabel
       - pyyaml

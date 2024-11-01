@@ -1,51 +1,67 @@
 import mne
+import EntropyHub as eh
 import numpy as np
-import pandas as pd
-from scipy.signal import detrend
-import antropy as ant
-
 
 # Definisci il percorso del file
-percorso_file = "D:/TESI/lid-data-samples/lid-data-samples/Dataset/DYS/PD012.mff/PD012_parziale.fif"
+percorso_file = "D:/TESI/lid-data-samples/lid-data-samples/Dataset/DYS/PD012.mff/PD012_cropped.fif"
 
 # Carica il file con preload=True
 raw = mne.io.read_raw_fif(percorso_file, preload=True, verbose=False)
 
-# Ottieni la frequenza di campionamento
-fs = raw.info['sfreq']
-print(f"Frequenza di campionamento: {fs} Hz")
+# Seleziona i canali desiderati
+raw = raw.pick_channels(['E8', 'E9', 'E10'])
 
-# Seleziona il canale E8
-raw_e8 = raw.copy().pick_channels(['E8'])
 
-# Applica detrend e rimuovi il valore medio (per segnale grezzo)
-data, times = raw_e8[:]
-data_detrended = detrend(data, axis=1)
+# Preprocessamento (se necessario)
+# Qui puoi aggiungere le operazioni di preprocessamento del segnale
 
-# Crea un nuovo oggetto Raw con i dati detrendati e senza valore medio
-info = raw_e8.info
-raw_e8_detrended = mne.io.RawArray(data_detrended, info)
+# Definisci la funzione per segmentare il segnale in epoche
+def segment_epochs(raw):
+    # Definisci gli eventi ogni 30 secondi
+    events = mne.make_fixed_length_events(raw, duration=30.0)
 
-# --- Applica il filtro passa-banda (0.5-40 Hz) ---
-raw_e8_detrended.filter(l_freq=0.35, h_freq=40, method='fir',
-                        fir_window='hamming', fir_design='firwin', verbose=False)
+    # Segmenta il segnale in epoche di 30 secondi
+    epochs = mne.Epochs(raw=raw, events=events, tmin=0.0, tmax=30.0, baseline=None, preload=True, verbose=False)
+    return epochs
 
-# --- Crea epoche di 30 secondi ---
-epoch_duration = 30  # Durata delle epoche in secondi
-events = mne.make_fixed_length_events(raw_e8_detrended, duration=epoch_duration)
-epochs = mne.Epochs(raw_e8_detrended, events, event_id=None, tmin=0,
-                    tmax=epoch_duration, baseline=None, preload=True)
 
-# Calcola la sample entropy per ogni epoca
-sample_entropy_values = []
-for epoch in epochs:
-    se = ant.sample_entropy(epoch[0])  # Calcola la sample entropy
-    sample_entropy_values.append(se)
+# Segmenta il segnale in epoche
+epochs = segment_epochs(raw)
 
-# Crea un DataFrame per memorizzare i risultati
-df_entropy = pd.DataFrame({'Epoch': range(len(sample_entropy_values)),
-                            'Sample Entropy': sample_entropy_values})
+# Ottieni i dati da tutte le epoche (n_epochs, n_channels, n_samples)
+epochs_data = epochs.get_data()
 
-# Visualizza il DataFrame
-print(df_entropy)
+
+# Funzione per calcolare le metriche di entropia su ogni canale
+def calculate_entropy_metrics(epoch_data):
+    """
+    Calcola diverse metriche di entropia sui dati di ogni canale dell'epoca.
+    :param epoch_data: Dati EEG per l'epoca, forma (n_channels, n_samples)
+    :return: Dizionario con le varie entropie per ogni canale
+    """
+    n_channels = epoch_data.shape[0]
+    entropies = {f'Channel_{i + 1}': {} for i in range(n_channels)}
+
+    for i in range(n_channels):
+        channel_data = epoch_data[i, :]  # Seleziona il singolo canale (un vettore 1D)
+
+        # Fuzzy Entropy
+        entropies[f'Channel_{i + 1}']['FuzzyEn'],_,_ = eh.FuzzEn(channel_data, m=1, r=(0.15*np.std(channel_data), 3))
+
+        # Multiscale Entropy
+        Mobj = eh.MSobject('FuzzEn', m=1, tau=1,
+                        Fx="default", r=(0.15*np.std(channel_data), 3))
+        entropies[f'Channel_{i + 1}']['MSEn'], _ = eh.MSEn(channel_data, Mbjx=Mobj, Scales=3, Methodx='coarse')
+
+    return entropies
+
+
+# Calcola le entropie per ogni epoca e canale
+for epoch_data in epochs_data:
+    # epoch_data ha dimensione (n_channels, n_samples) per ciascuna epoca
+    entropy_metrics = calculate_entropy_metrics(epoch_data)
+
+    # Stampa o salva i risultati come desiderato
+    print(entropy_metrics)
+
 
