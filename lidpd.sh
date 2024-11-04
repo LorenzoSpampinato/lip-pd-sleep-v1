@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name='lid_pd_3'
+#SBATCH --job-name='lid_pd_1'
 #SBATCH -o /home/lorenzo.spampinato/scratch/0_lid-pd/outfile_lid_pd_1
-#SBATCH -e /home/lorenzo.spampinato/scratch/0_lid-pd/errfile_lid_pd_3
+#SBATCH -e /home/lorenzo.spampinato/scratch/0_lid-pd/errfile_lid_pd_1
 #SBATCH -N1
 #SBATCH -p compute
 

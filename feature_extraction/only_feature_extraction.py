@@ -3,12 +3,20 @@ import numpy as np
 import mne
 from feature_extraction import ChannelConnectivityFeatureExtractor, NetworkFeatureExtractor, SingleChannelFeatureExtractor
 import time
+from utilities import EEGRegionsDivider
 
 class EEGFeatureExtractor111:
-    def __init__(self, data_path, save_path, regions):
+    def __init__(self, data_path, save_path):
         self.data_path = data_path
         self.save_path = save_path
-        self.regions = regions
+        # Initialize the EEG region divider
+        self.divider = EEGRegionsDivider()
+        self.regions = self.divider.get_all_regions()
+        self.idx_chs = self.divider.get_index_channels()
+
+        # Channel names and reference setup
+        self.names = ['E' + str(idx_ch) for idx_ch in self.idx_chs]
+        self.names[self.names.index('E257')] = 'Vertex Reference'
 
     def process_and_save_features(self, raw, sub_fold):
         """Process the raw data to extract features and save them."""

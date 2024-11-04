@@ -197,8 +197,9 @@ sys.stdout = open(log_file_path, 'w')
 print("Logfile created")
 
 # Esegui l'export specificando il percorso dei dati, il percorso di output e i dettagli del paziente
-#data_path = r"D:\TESI\lid-data-samples\lid-data-samples\Dataset"
-#output_path = r"D:\TESI\lid-data-samples\lid-data-samples\Dataset"
-data_path1 =args.data_path
-output_path =args.save_path
-export_eeg_to_edf(data_path1, output_path, sfreq=250, only_class='ADV', only_patient='PD002')
+data_path = r"D:\TESI\lid-data-samples\lid-data-samples\Dataset"
+output_path = r"D:\TESI\lid-data-samples\lid-data-samples\Dataset"
+#data_path1 =args.data_path
+#output_path =args.save_path
+export_eeg_to_edf(data_path, output_path, sfreq=250, only_class='ADV', only_patient='PD002')
+#export_eeg_to_edf(data_path1, output_path, sfreq=250, only_class='ADV', only_patient='PD002')

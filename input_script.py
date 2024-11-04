@@ -7,6 +7,7 @@ def get_args():
                         help='Absolute path to the folder containing PSG data',
                         default=r'./Dataset')
                         #default= "D:\TESI\lid-data-samples\lid-data-samples\Dataset")
+                        #default=r'.\Preprocessed_BIN')
     parser.add_argument("--label_path", type=str,
                         help='Absolute path to the folder containing the labels',
                         default=r'./Labels')
@@ -22,7 +23,7 @@ def get_args():
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--run_hypnogram", type=bool,
                         help='Flag to run hypnogram definition',
-                        default=False)
+                        default=True)
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--run_preprocess", type=bool,
                         help='Flag to run pre-processing',
@@ -42,10 +43,10 @@ def get_args():
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--run_aggregation", type=bool,
                         help='Flag to run data aggregation for dataframe definition (for each subject separately)',
-                        default=True)
+                        default=False)
     parser.add_argument("--aggregate_labels", type=bool,
                         help='Flag to whether consider labels during dataframe definition',
-                        default=True)
+                        default=False)
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--run_nan_check", type=bool,
                         help='Flag to run check on NaN values among extracted features',
@@ -67,11 +68,11 @@ def get_args():
     parser.add_argument("--only_stage", type=str,
                         help='Sleep stage to be considered for the analysis i.e., W, N1, N2, N3, REM. If None, no '
                              'distinction is made',
-                        default=False)
+                        default=None)
     parser.add_argument("--only_brain_region", type=str,
                         help='Brain region to be considered for the analysis i.e., Fp, F, C, T, P, O. If None, no '
                              'distinction is made',
-                        default=False)
+                        default=None)
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--run_pca", type=bool,
                         help='Flag to run dimensionality reduction (PCA)',

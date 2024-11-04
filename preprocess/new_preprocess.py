@@ -4,8 +4,9 @@ import os
 from scipy.signal import detrend
 from mne_icalabel import label_components
 import matplotlib.pyplot as plt
+from utilities import EEGRegionsDivider
 
-class EEGPreprocessor111:
+class EEGPreprocessor:
     def __init__(self, raw, data_path, save_path, run_preprocess=True, run_bad_interpolation=True):
         """
         Initializes the EEGPreprocessor object with preprocessing parameters.
@@ -24,6 +25,15 @@ class EEGPreprocessor111:
         self.run_bad_interpolation = run_bad_interpolation
         self.ica = None
         self.ic_labels = None
+
+        # Initialize the EEG region divider
+        self.divider = EEGRegionsDivider()
+        self.regions = self.divider.get_all_regions()
+        self.idx_chs = self.divider.get_index_channels()
+
+        # Channel names and reference setup
+        self.names = ['E' + str(idx_ch) for idx_ch in self.idx_chs]
+        self.names[self.names.index('E257')] = 'Vertex Reference'
 
     def preprocess(self):
         if not self.run_preprocess:
@@ -67,7 +77,7 @@ class EEGPreprocessor111:
         # Create and fit ICA
         self.ica = mne.preprocessing.ICA(n_components=None, method='fastica', random_state=0, verbose=False)
         self.ica.fit(self.raw, verbose=False)
-
+        #'''
         # Save ICA sources plot
         print("Saving ICA sources plot...")
         fig_sources = self.ica.plot_sources(self.raw, start=7200, stop= 7230, title='Ica Plot sources PD011', show=False, show_scrollbars=False)
@@ -81,7 +91,7 @@ class EEGPreprocessor111:
             for i, fig in enumerate(component_figures):
                 fig.savefig(os.path.join(self.save_path, f"ica_component_{i}.png"))
                 plt.close(fig)
-
+        #'''
 
         # Label ICA components and exclude non-brain-related components
         print("Labeling ICA components...")
@@ -89,10 +99,11 @@ class EEGPreprocessor111:
         exclude_idx = [idx for idx, label in enumerate(self.ic_labels["labels"]) if label not in ["brain", "other"]]
 
         # Save overlay plot for the excluded components
+        #'''
         print("Saving ICA overlay plot...")
         fig_overlay = self.ica.plot_overlay(self.raw, exclude=exclude_idx[:1], picks="eeg", show=False)
         fig_overlay.savefig(os.path.join(self.save_path, "ica_overlay.png"))
-        plt.close(fig_overlay)
+        plt.close(fig_overlay) #'''
 
         # Apply ICA with the exclusion of non-brain components
         self.raw = self.ica.apply(self.raw, exclude=exclude_idx, verbose=False)
