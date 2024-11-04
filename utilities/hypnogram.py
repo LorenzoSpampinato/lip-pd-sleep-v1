@@ -21,13 +21,14 @@ class HypnogramProcessor:
         """Main method to process all hypnogram files."""
         if not self.run_hypnogram:
             return
-
+        print("Processing hypnograms...")
         # Loop through all .mat hypnogram files
         for stages_sub in glob.glob(self.label_path + '/*/*.mat', recursive=True):
             hyp = self._load_hypnogram(stages_sub)
             hyp_30s = self._define_30s_epochs(hyp)
             hyp_converted = self._convert_hypnogram(hyp_30s)
             self._save_hypnogram(stages_sub, hyp_converted)
+
 
     def _load_hypnogram(self, file_path):
         """Loads hypnogram data from a .mat file."""

@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name='lid_pd_3'
-#SBATCH -o /home/lorenzo.spampinato/scratch/0_lid-pd/outfile_lid_pd_1
-#SBATCH -e /home/lorenzo.spampinato/scratch/0_lid-pd/errfile_lid_pd_3
+#SBATCH --job-name='lid_pd_edf'
+#SBATCH -o /home/lorenzo.spampinato/scratch/0_lid-pd/outfile_lid_pd_4
+#SBATCH -e /home/lorenzo.spampinato/scratch/0_lid-pd/errfile_lid_pd_4
 #SBATCH -N1
 #SBATCH -p compute
 
@@ -26,7 +26,7 @@ ONLY_PATIENT="PD011"
 
 # Specify the python scripts to run
 #PYTHON_SCRIPT="C:\Users\Lorenzo\PycharmProjects\lid-pd-sleep-v0"
-PYTHON_SCRIPT="lidpd_main.py"
+PYTHON_SCRIPT="utilities\save_edf.py"
 PYTHON_ARGS="--data_path $DATA_PATH --label_path $LABEL_PATH --save_path $SAVE_PATH --info_path $INFO_PATH --only_class ${ONLY_CLASS} --only_patient ${ONLY_PATIENT}"
 
 #srun singularity exec -B $VOLUME:/Preprocessed_BIN/,$PWD_APP:/app/ --pwd /app $IMAGE_PATH \

@@ -2,8 +2,10 @@ import os
 import sys
 import time
 import warnings
+from data_loading import EEGDataLoader
+from preprocess import EEGPreprocessor111
 from utilities import HypnogramProcessor
-from feature_extraction import EEGFeatureExtractor
+from feature_extraction import EEGFeatureExtractor111
 from utilities import EEGDataFrameGenerator
 from utilities import NaNChecker
 from utilities import DimensionalityReducer
@@ -26,15 +28,58 @@ if __name__ == "__main__":
         os.mkdir(args.save_path)
 
     # Save all prints in logfile
-    sys.stdout = open(os.path.join(args.info_path, f'logfile_{int(time.time())}.txt'), 'w')
+    log_dir = os.path.join(args.info_path, 'lorenzo_logfiles')
+    os.makedirs(log_dir, exist_ok=True)
+    log_file_path = os.path.join(log_dir, f'logfile_{int(time.time())}.txt')
+    sys.stdout = open(log_file_path, 'w')
     print("Logfile created")
+
     # ------------------------------------  Hypnogram definition (30-s epochs)  ------------------------------------
     processor = HypnogramProcessor(args.label_path, args.run_hypnogram)
     processor.process_hypnograms()
     print("Hypnograms processed")
-    # -----------------------------------  Pre-processing + feature extraction  ------------------------------------
-    extractor = EEGFeatureExtractor(args.data_path, args.label_path, args.save_path, args.run_preprocess, args.run_bad_interpolation)
-    extractor.extract_features_for_all_subjects(args.only_class, args.only_patient, args.run_features)
+
+    # Extract subject folders based on class and patient filters
+    if args.only_class and args.only_patient:
+        sub_folds = [os.path.join(args.data_path, args.only_class, args.only_patient)]
+    else:
+        sub_folds = [folder for folder in os.listdir(args.data_path) if os.path.isdir(os.path.join(args.data_path, folder))]
+
+    # Process Multiple Subjects
+    for sub_fold in sub_folds:
+        print(f"Start processing: {sub_fold}")
+
+        # Define full path for the subject folder
+        subject_path = os.path.join(args.data_path, sub_fold)
+
+        # Check if the folder already ends with '.mff' and define mff_path accordingly
+        mff_path = subject_path if subject_path.endswith('.mff') else subject_path + '.mff'
+
+        # Rename to .mff if necessary
+        if not subject_path.endswith('.mff') and os.path.exists(subject_path):
+            print(f"Renaming {subject_path} to {mff_path}...")
+            os.rename(subject_path, mff_path)
+
+        # --------------------------------------- Load the raw data --------------------------------------------------
+        data_loader = EEGDataLoader(args.data_path, args.label_path)
+        raw = data_loader.load_and_prepare_data(mff_path)  # Load using mff_path
+
+        # --------------------------------------- Preprocessing -----------------------------------------------------
+        if args.run_preprocess or args.run_bad_interpolation:
+            preprocessor = EEGPreprocessor111(
+                raw, args.data_path, args.save_path, args.run_preprocess, args.run_bad_interpolation
+            )
+            processed_raw = preprocessor.preprocess()
+        else:
+            processed_raw = raw  # Use raw data if no preprocessing is specified
+
+        # ------------------------- Segment into epochs and extract features -----------------------------------------
+        if args.run_features:
+            feature_extractor = EEGFeatureExtractor111(args.data_path, args.save_path, args.regions)
+            feature_extractor.process_and_save_features(processed_raw, mff_path)
+
+        print(f"Finished processing: {sub_fold}")
+
 
     # --------------------------------  Aggregating labels + Dataframe definition  ---------------------------------
     generator = EEGDataFrameGenerator(args.label_path, args.save_path, args.aggregate_labels)
@@ -55,5 +100,3 @@ if __name__ == "__main__":
     # -------------------------------------------  Classification task  --------------------------------------------
     classifier = Classifier(args.save_path, args.only_stage, args.only_brain_region)
     classifier.classification(args.run_classification_task, args.run_pca)
-
-
