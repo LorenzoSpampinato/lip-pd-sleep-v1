@@ -5,12 +5,12 @@ def get_args():
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--data_path", type=str,
                         help='Absolute path to the folder containing PSG data',
-                        default=r'./Dataset')
+                        default=r'./preprocessed_post_ICA_fif')
                         #default= "D:\TESI\lid-data-samples\lid-data-samples\Dataset")
                         #default=r'.\Preprocessed_BIN')
     parser.add_argument("--label_path", type=str,
                         help='Absolute path to the folder containing the labels',
-                        default=r'./Labels')
+                        default=r'./Annotations')
                         #default= "D:\TESI\lid-data-samples\lid-data-samples\Labels")
     parser.add_argument("--save_path", type=str,
                         help='Absolute path where to save the pre-processed PSG data',
@@ -23,14 +23,14 @@ def get_args():
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--run_hypnogram", type=bool,
                         help='Flag to run hypnogram definition',
-                        default=True)
+                        default=False)
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--run_preprocess", type=bool,
                         help='Flag to run pre-processing',
-                        default=True)
+                        default=False)
     parser.add_argument("--run_bad_interpolation", type=bool,
                         help='Flag to run bad channels interpolation',
-                        default=True)
+                        default=False)
     parser.add_argument("--run_features", type=bool,
                         help='Flag to run feature extraction',
                         default= True)
@@ -39,7 +39,7 @@ def get_args():
                         default='DYS')
     parser.add_argument("--only_patient", type=str,
                         help='Patient name only for which features are extracted (i.e., PD002, PD003, ...)',
-                        default='PD011')
+                        default='PD017')
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--run_aggregation", type=bool,
                         help='Flag to run data aggregation for dataframe definition (for each subject separately)',
@@ -50,7 +50,7 @@ def get_args():
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--run_nan_check", type=bool,
                         help='Flag to run check on NaN values among extracted features',
-                        default=True)
+                        default=False)
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--run_dataset_split", type=bool,
                         help='Flag to run Training, Validation, and Test Set definition',

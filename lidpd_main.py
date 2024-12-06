@@ -5,7 +5,7 @@ import warnings
 from data_loading import EEGDataLoader
 from preprocess import EEGPreprocessor
 from utilities import HypnogramProcessor
-from feature_extraction import EEGFeatureExtractor111
+from feature_extraction import EEGFeatureExtractor
 from utilities import EEGDataFrameGenerator
 from utilities import NaNChecker
 from utilities import DimensionalityReducer
@@ -33,107 +33,75 @@ if __name__ == "__main__":
     log_file_path = os.path.join(log_dir, f'logfile_{int(time.time())}.txt')
     sys.stdout = open(log_file_path, 'w')
     print("Logfile created")
+    print("PROVA VARIABILITY 0.85")
 
     # ------------------------------------  Hypnogram definition (30-s epochs)  ------------------------------------
     processor = HypnogramProcessor(args.label_path, args.run_hypnogram)
     processor.process_hypnograms()
-    print("Hypnograms processed")
 
-    # Extract subject folders based on class and patient filters
-    if args.only_class and args.only_patient:
-        sub_folds = [os.path.join(args.data_path, args.only_class, args.only_patient)]
-    else:
-        sub_folds = [folder for folder in os.listdir(args.data_path) if os.path.isdir(os.path.join(args.data_path, folder))]
+    # Definisci le classi di pazienti da elaborare
+    classes = args.only_class.split(',') if args.only_class else ['DYS', 'ADV', 'DNV', 'CTL']
 
-    # Process Multiple Subjects
-    for sub_fold in sub_folds:
-        '''
-        try:
+    # Loop per ogni classe
+    for class_name in classes:
+        print(f"Processing class: {class_name}")
+
+        sub_folds = []
+        class_folder = os.path.join(args.data_path, class_name)
+
+        # Verifica se la cartella della classe esiste
+        if not os.path.isdir(class_folder):
+            print(f"Class folder {class_folder} does not exist!")
+            continue  # Salta questa classe se la cartella non esiste
+
+        # Se è specificato --only_patient, elaboriamo solo quei pazienti
+        if args.only_patient:
+            if args.only_patient == "ALL":  # Se è specificato "ALL" per i pazienti
+                # Prendi tutti i pazienti dalla cartella della classe
+                sub_folds = [folder for folder in os.listdir(class_folder)
+                             if os.path.isdir(os.path.join(class_folder, folder))]
+                print(f'Processing all patients in class {class_name}:', sub_folds)
+            else:  # Altrimenti, prendi solo i pazienti specificati in args.only_patient
+                patients = args.only_patient.split(',')
+                for patient in patients:
+                    patient_folder = os.path.join(class_folder, patient)
+                    if os.path.isdir(patient_folder):  # Verifica che la cartella del paziente esista
+                        sub_folds.append(patient)
+                    else:
+                        print(f"Patient folder {patient_folder} does not exist!")
+        else:  # Se non è specificato --only_patient, prendi tutti i pazienti dalla cartella della classe
+            sub_folds = [folder for folder in os.listdir(class_folder)
+                         if os.path.isdir(os.path.join(class_folder, folder))]
+            print(f'Processing all patients in class {class_name}:', sub_folds)
+
+        # Elaborazione dei pazienti per la classe corrente
+        for sub_fold in sub_folds:
             print(f"Start processing: {sub_fold}")
 
-            # Define full path for the subject folder
-            subject_path = os.path.join(args.data_path, sub_fold)
+            # Definisci il percorso completo della cartella del paziente
+            subject_path = os.path.join(class_folder, sub_fold)
 
-            # Check if the folder already ends with '.mff' and define mff_path accordingly
-            mff_path = subject_path if subject_path.endswith('.mff') else subject_path + '.mff'
-
-            # Rename to .mff if necessary
-            if not subject_path.endswith('.mff') and os.path.exists(subject_path):
-                print(f"Renaming {subject_path} to {mff_path}...")
-                os.rename(subject_path, mff_path)
-
-            # --------------------------------------- Load the raw data --------------------------------------------------
-            data_loader = EEGDataLoader(args.data_path, args.label_path)
-            raw = data_loader.load_and_prepare_data(mff_path)  # Load using mff_path
+            # --------------------------------------- Carica i dati grezzi --------------------------------------------------
+            data_loader = EEGDataLoader(args.data_path, args.save_path, class_name, sub_fold)
+            print("Save path:", args.save_path)
+            raw = data_loader.load_and_prepare_data(subject_path, args.save_path, sub_fold)
 
             # --------------------------------------- Preprocessing -----------------------------------------------------
             if args.run_preprocess or args.run_bad_interpolation:
                 preprocessor = EEGPreprocessor(
-                    raw, args.data_path, args.save_path, args.run_preprocess, args.run_bad_interpolation
+                    raw, args.data_path, args.label_path, args.save_path, args.run_preprocess,
+                    args.run_bad_interpolation, class_name, sub_fold
                 )
-                processed_raw = preprocessor.preprocess()
+                processed_raw = preprocessor.preprocess(sub_fold, overwrite=True)
             else:
-                processed_raw = raw  # Use raw data if no preprocessing is specified
+                processed_raw = raw  # Usa i dati grezzi se non è specificato alcun preprocessing
 
-            # ------------------------- Segment into epochs and extract features -----------------------------------------
+            # ------------------------- Segmentazione in epoche ed estrazione delle caratteristiche ------------------------
             if args.run_features:
-                feature_extractor = EEGFeatureExtractor111(args.data_path, args.save_path, args.regions)
-                feature_extractor.process_and_save_features(processed_raw, mff_path)
+                feature_extractor = EEGFeatureExtractor(args.data_path, args.label_path, args.save_path, class_name, sub_fold)
+                feature_extractor.process_and_save_features(processed_raw, subject_path)
 
             print(f"Finished processing: {sub_fold}")
-
-        except Exception as e:
-            print(f"Error encountered during processing of {sub_fold}: {e}")
-
-        finally:
-            # Restore original folder name (remove '.mff') if it was renamed
-            if os.path.exists(mff_path):
-                print(f"Renaming {mff_path} back to {sub_fold}...")
-                os.rename(mff_path, subject_path)
-                print(f"End renaming back: {mff_path} to {sub_fold}")
-
-    print("Data processing completed.")
-    '''
-    print(f"Start processing: {sub_fold}")
-
-    # Define full path for the subject folder
-    subject_path = os.path.join(args.data_path, sub_fold)
-
-    # Check if the folder already ends with '.mff' and define mff_path accordingly
-    mff_path = subject_path if subject_path.endswith('.mff') else subject_path + '.mff'
-
-    # Rename to .mff if necessary
-    if not subject_path.endswith('.mff') and os.path.exists(subject_path):
-        print(f"Renaming {subject_path} to {mff_path}...")
-        os.rename(subject_path, mff_path)
-
-        # --------------------------------------- Load the raw data --------------------------------------------------
-        data_loader = EEGDataLoader(args.data_path, args.label_path)
-        raw = data_loader.load_and_prepare_data(mff_path)  # Load using mff_path
-
-        # --------------------------------------- Preprocessing -----------------------------------------------------
-        if args.run_preprocess or args.run_bad_interpolation:
-            preprocessor = EEGPreprocessor(
-                raw, args.data_path, args.save_path, args.run_preprocess, args.run_bad_interpolation
-            )
-            processed_raw = preprocessor.preprocess()
-        else:
-            processed_raw = raw  # Use raw data if no preprocessing is specified
-
-        # ------------------------- Segment into epochs and extract features -----------------------------------------
-        if args.run_features:
-            feature_extractor = EEGFeatureExtractor111(args.data_path, args.save_path)
-            feature_extractor.process_and_save_features(processed_raw, mff_path)
-
-        print(f"Finished processing: {sub_fold}")
-
-        # Restore original folder name (remove '.mff') if it was renamed
-        if os.path.exists(mff_path):
-            print(f"Renaming {mff_path} back to {sub_fold}...")
-            os.rename(mff_path, subject_path)
-            print(f"End renaming back: {mff_path} to {sub_fold}")
-
-
 
     # --------------------------------  Aggregating labels + Dataframe definition  ---------------------------------
     generator = EEGDataFrameGenerator(args.label_path, args.save_path, args.aggregate_labels)

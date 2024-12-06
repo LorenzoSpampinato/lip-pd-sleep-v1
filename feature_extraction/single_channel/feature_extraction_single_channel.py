@@ -2,11 +2,13 @@ import numpy as np
 from scipy.signal import welch
 from scipy.stats import skew, kurtosis, mstats
 import antropy as ant
-
+import os
+import matplotlib.pyplot as plt
+import mne
 
 
 class SingleChannelFeatureExtractor:
-    def __init__(self, epochs, fs, ch_reg, win_sec=5):
+    def __init__(self, epochs, fs, ch_reg, win_sec=3, save_path=None, only_stage=None, only_patient=None):
         """
         Initializes the feature extractor with the necessary parameters.
 
@@ -16,6 +18,7 @@ class SingleChannelFeatureExtractor:
         - ch_reg: Dictionary of channel names divided by brain region
         - win_sec: Window length in seconds (default = 5)
         """
+
         self.epochs = epochs
         self.fs = fs
         self.ch_reg = ch_reg
@@ -41,6 +44,9 @@ class SingleChannelFeatureExtractor:
                              '43 Katz fractal dimension', '44 Higuchi fractal dimension',
                              '45 Petrosian fractal dimension'])
         self.features_matrix = np.zeros([len(self.ch_reg), len(self.feats), len(self.epochs)])
+        self.save_path = save_path
+        self.only_stage = only_stage
+        self.only_patient = only_patient
 
     def extract_features(self):
         """
@@ -63,10 +69,28 @@ class SingleChannelFeatureExtractor:
                 x_sig_30 = epochs_chs.get_data()[:, nch, :]
                 print("nch: ", nch)
                 # PSD calculation using Welch method
-                f, psd = welch(x=(x_sig_30 - np.mean(x_sig_30, axis=-1)[:, np.newaxis]),
+                f, psd = welch(x=x_sig_30,
                                fs=self.fs, window='hamming', nperseg=int(self.win_sec * self.fs),
                                noverlap= int((self.win_sec * self.fs)/2),
                                average='median', axis=-1)
+
+                # Average PSD across epochs
+                avg_psd = np.mean(psd, axis=0)
+
+                # Define channel positions
+                pos = mne.find_layout(self.epochs.info).pos
+
+                # Plot topomap
+                fig, ax = plt.subplots()
+                mne.viz.plot_topomap(
+                    avg_psd, pos, ch_type='eeg', cmap='viridis', show=False,
+                    contours=0, outlines='head', axes=ax
+                )
+                # Save the figure
+                plot_dir = os.path.join(self.save_path, "PSD_topomap", self.only_stage, self.only_patient)
+                os.makedirs(plot_dir, exist_ok=True)
+                fig.savefig(os.path.join(plot_dir, f"topomap_psd_{ch}.png"))
+                plt.close(fig)
 
 
                 abs_psd = np.abs(psd)

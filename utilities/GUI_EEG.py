@@ -1,5 +1,6 @@
 import mne
 import numpy as np
+import PyQt5
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel, QSlider, QComboBox, QHBoxLayout, \
     QPushButton
 from PyQt5.QtCore import Qt
@@ -9,20 +10,18 @@ import sys
 
 
 class EEGViewer(QMainWindow):
-    def __init__(self, fif_file, ica_file, raw_epoch_file):
+    def __init__(self, fif_file,ica_file):
         super().__init__()
         self.setWindowTitle("EEG Viewer - Preprocessato")
 
         # Caricamento del file preprocessato e ICA
         self.raw_preprocessed = mne.io.read_raw_fif(fif_file, preload=True, verbose=False)
+
         self.ica = mne.preprocessing.read_ica(ica_file)
         start_sample = int(120 * 60 * self.raw_preprocessed.info['sfreq'])
         end_sample = start_sample + int(60 * 60 * self.raw_preprocessed.info['sfreq'])
         self.raw_preprocessed = self.raw_preprocessed.crop(tmin=start_sample / self.raw_preprocessed.info['sfreq'],
                                                            tmax=end_sample / self.raw_preprocessed.info['sfreq'])
-
-        # Caricamento dell'epoca raw di 30 secondi (in un'altra finestra)
-        self.raw_epoch = mne.io.read_raw_fif(raw_epoch_file, preload=True, verbose=False)
 
         # Layout principale
         main_layout = QVBoxLayout()
@@ -90,7 +89,7 @@ class EEGViewer(QMainWindow):
     def update_plots(self):
         selected_channel = self.channel_selector.currentText()
         channel_index = self.raw_preprocessed.ch_names.index(selected_channel)
-        start_time_offset = 7200
+        start_time_offset = 0
         start_segment = self.epoch_slider.value() * 30
 
         for i in range(3):
@@ -310,10 +309,9 @@ class PSDWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    fif_file = "/Users/matilde_oropallo/PycharmProjects/lid-pd_0/data/ADV/PD002_preprocessed.fif"
-    ica_file = "/Users/matilde_oropallo/PycharmProjects/lid-pd_0/data/ADV/PD002-ica.fif"
-    raw_epoch_file = "/Users/matilde_oropallo/PycharmProjects/lid-pd_0/data/ADV/PD002.mff/PD002_epoch_2h-30s_raw.fif"
-    viewer = EEGViewer(fif_file, ica_file, raw_epoch_file)
+    fif_file = r"C:\Users\Lorenzo\Desktop\PD002.fif"
+    ica_file = r"C:\Users\Lorenzo\Desktop\PD005-ica.fif"
+    viewer = EEGViewer(fif_file, ica_file)
     viewer.show()
     sys.exit(app.exec_())
 

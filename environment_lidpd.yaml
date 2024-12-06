@@ -12,7 +12,7 @@ dependencies:
   - wheel
   - cudatoolkit
   - cudnn
-  - edfio  # Aggiunto il pacchetto edfio tramite conda-forge
+  #- edfio  # Aggiunto il pacchetto edfio tramite conda-forge
   - pip:
       - numpy
       - scipy
