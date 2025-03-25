@@ -2,12 +2,12 @@ import mne
 import matplotlib.pyplot as plt
 
 # Parametri del filtro
-fs = 250  # Frequenza di campionamento in Hz
-l_freq = 0.3  # Frequenza di taglio inferiore
+fs = 128  # Frequenza di campionamento in Hz
+l_freq = 0.50  # Frequenza di taglio inferiore
 h_freq = 35 # Frequenza di taglio superiore
 fir_window = 'hamming'  # Tipo di finestra
 filter_length='auto'
-l_trans_bandwidth=0.2
+l_trans_bandwidth=0.3
 h_trans_bandwidth='auto'
 fir_design='firwin'
 method='fir'
@@ -49,45 +49,52 @@ print(f" - Risposta del filtro in secondi: {filtro_length_seconds:.4f} s")
 print(f" - Banda di roll-off: {rolloff_bandwidth:.2f} Hz")
 
 #####################################################################################################
+'''
+# Path to the FIF file (replace with the actual path)
+file_path = 'D:/TESI/lid-data-samples/lid-data-samples/Dataset/DYS/PD012.mff/PD012_cropped.fif'
 
-# Path del file FIF (sostituisci con il percorso reale)
-file_path = 'D:\TESI\lid-data-samples\lid-data-samples\Dataset\DYS\PD012.mff\PD012_cropped.fif'
-
-# Carica il file FIF
+# Load the FIF file
 raw = mne.io.read_raw_fif(file_path, preload=True)
 
-# Applica il filtro FIR al segnale
+# Apply FIR filter to the signal
 raw_filtered = raw.copy().filter(l_freq=l_freq, h_freq=h_freq, filter_length=filter_length,
-                                     l_trans_bandwidth=l_trans_bandwidth, h_trans_bandwidth=h_trans_bandwidth,
-                                     method=method, phase= phase,
-                                     fir_window=fir_window, fir_design=fir_design, verbose=None)
+                                 l_trans_bandwidth=l_trans_bandwidth, h_trans_bandwidth=h_trans_bandwidth,
+                                 method=method, phase=phase,
+                                 fir_window=fir_window, fir_design=fir_design, verbose=None)
 
-# Seleziona un canale per visualizzare il segnale nel tempo (ad esempio il primo canale)
-channel = 0  # Puoi scegliere un canale specifico
-start, stop = raw.time_as_index([0,30])  # Intervallo di tempo (in secondi) da visualizzare
+# Select a channel to visualize the signal over time (e.g., the first channel)
+channel = 0  # You can choose a specific channel
+#start, stop = raw.time_as_index([60, 360])  # Time interval (in seconds) to visualize
+start, stop = raw.time_as_index([503.6, 508])  # Time interval (in seconds) to visualize
 
-# Estrai i dati del segnale originale e filtrato
+# Extract data for the original and filtered signals
 original_data, times = raw[channel, start:stop]
 filtered_data, _ = raw_filtered[channel, start:stop]
 
-# Plot dei segnali nel dominio del tempo
+# Converti i dati in microvolt
+original_data_microvolt = original_data * 1e6  # Converti in μV
+filtered_data_microvolt = filtered_data * 1e6  # Converti in μV
+
+# Plot signals in the time domain
 plt.figure(figsize=(12, 6))
 
-# Segnale originale
+# Original signal
 plt.subplot(2, 1, 1)
-plt.plot(times, original_data[0], label="Segnale Originale", color="blue")
-plt.xlabel("Tempo (s)")
-plt.ylabel("Ampiezza (uV)")
-plt.title("Segnale Originale")
+plt.plot(times, original_data_microvolt[0], label="Original Signal", color="black")
+plt.xlabel("Time (s)")
+plt.ylabel("Amplitude (μV)")
+plt.title("Original Signal")
 plt.legend()
 
-# Segnale filtrato
+# Filtered signal
 plt.subplot(2, 1, 2)
-plt.plot(times, filtered_data[0], label="Segnale Filtrato", color="orange")
-plt.xlabel("Tempo (s)")
-plt.ylabel("Ampiezza (uV)")
-plt.title("Segnale Filtrato")
+plt.plot(times, filtered_data_microvolt[0], label="Filtered Signal", color="black")
+plt.xlabel("Time (s)")
+plt.ylabel("Amplitude (μV)")
+plt.title("Filtered Signal")
 plt.legend()
 
 plt.tight_layout()
 plt.show()
+
+'''

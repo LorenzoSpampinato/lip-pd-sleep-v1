@@ -10,18 +10,21 @@ import sys
 
 
 class EEGViewer(QMainWindow):
-    def __init__(self, fif_file,ica_file):
+    def __init__(self, mff_file, ica_file):
         super().__init__()
         self.setWindowTitle("EEG Viewer - Preprocessato")
 
-        # Caricamento del file preprocessato e ICA
-        self.raw_preprocessed = mne.io.read_raw_fif(fif_file, preload=True, verbose=False)
+        # Caricamento del file .mff (Raw EEG)
+        self.raw = mne.io.read_raw_egi(mff_file, preload=True, verbose=False)
 
+        # Caricamento del file ICA
         self.ica = mne.preprocessing.read_ica(ica_file)
-        start_sample = int(120 * 60 * self.raw_preprocessed.info['sfreq'])
-        end_sample = start_sample + int(60 * 60 * self.raw_preprocessed.info['sfreq'])
-        self.raw_preprocessed = self.raw_preprocessed.crop(tmin=start_sample / self.raw_preprocessed.info['sfreq'],
-                                                           tmax=end_sample / self.raw_preprocessed.info['sfreq'])
+
+        # Selezionare una finestra di tempo
+        start_sample = int(120 * 60 * self.raw.info['sfreq'])
+        end_sample = start_sample + int(60 * 60 * self.raw.info['sfreq'])
+        self.raw_preprocessed = self.raw.crop(tmin=start_sample / self.raw.info['sfreq'],
+                                              tmax=end_sample / self.raw.info['sfreq'])
 
         # Layout principale
         main_layout = QVBoxLayout()
@@ -38,6 +41,9 @@ class EEGViewer(QMainWindow):
         self.epoch_slider.setMinimum(0)
         self.epoch_slider.setMaximum(int(60 * 60 / 30) - 3)
         self.epoch_slider.valueChanged.connect(self.update_plots)
+
+        # Impostazione della posizione iniziale dello slider a 0
+        self.epoch_slider.setValue(0)
 
         # Label per l'epoca corrente
         self.epoch_label = QLabel("Segmento: 0")
@@ -84,6 +90,8 @@ class EEGViewer(QMainWindow):
         self.ica_window = None
         self.psd_window = None
         self.raw_window = None
+
+        # Visualizza i plot iniziali
         self.update_plots()
 
     def update_plots(self):
@@ -92,13 +100,14 @@ class EEGViewer(QMainWindow):
         start_time_offset = 0
         start_segment = self.epoch_slider.value() * 30
 
+        # Visualizza 3 segmenti di 30 secondi
         for i in range(3):
             segment_start = int((start_segment + i * 30) * self.raw_preprocessed.info['sfreq'])
             segment_end = int(segment_start + 30 * self.raw_preprocessed.info['sfreq'])
             data, times = self.raw_preprocessed[channel_index, segment_start:segment_end]
 
-            self.axs[i].cla()
-            self.axs[i].plot(times + start_time_offset, data.T)
+            self.axs[i].cla()  # Pulisce l'asse per un nuovo plot
+            self.axs[i].plot(times + start_time_offset, data.T)  # Disegna il segnale
             self.axs[i].set_title(f"Segmento {self.epoch_slider.value() + i} - Canale {selected_channel} (Preprocessato)")
             self.axs[i].set_xlabel("Tempo (s)")
             self.axs[i].set_ylabel("Ampiezza")
@@ -106,6 +115,7 @@ class EEGViewer(QMainWindow):
 
         self.canvas.draw()
 
+    # Funzioni per aprire altre finestre
     def open_topography_window(self):
         if self.topography_window is None:
             self.topography_window = TopographyWindow(self.raw_preprocessed)
@@ -123,8 +133,9 @@ class EEGViewer(QMainWindow):
 
     def open_raw_window(self):
         if self.raw_window is None:
-            self.raw_window = RawEEGWindow(self.raw_epoch)
+            self.raw_window = RawEEGWindow(self.raw_preprocessed)
         self.raw_window.show()
+
 
 
 class RawEEGWindow(QMainWindow):
@@ -309,9 +320,9 @@ class PSDWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    fif_file = r"C:\Users\Lorenzo\Desktop\PD002.fif"
+    mff_file = r"D:\TESI\lid-data-samples\lid-data-samples\Dataset\DYS\PD012.mff"  # Percorso del file MFF
     ica_file = r"C:\Users\Lorenzo\Desktop\PD005-ica.fif"
-    viewer = EEGViewer(fif_file, ica_file)
+    viewer = EEGViewer(mff_file, ica_file)
     viewer.show()
     sys.exit(app.exec_())
 

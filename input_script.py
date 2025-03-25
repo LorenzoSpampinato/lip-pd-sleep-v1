@@ -5,9 +5,10 @@ def get_args():
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--data_path", type=str,
                         help='Absolute path to the folder containing PSG data',
-                        default=r'./preprocessed_post_ICA_fif')
+                        #default=r'.preprocessed_post_ICA_fif')
+                        default=r'./Preprocessing_post_ICA_HP_0.5Hz')
+                        #default=r'./Dataset_bin')
                         #default= "D:\TESI\lid-data-samples\lid-data-samples\Dataset")
-                        #default=r'.\Preprocessed_BIN')
     parser.add_argument("--label_path", type=str,
                         help='Absolute path to the folder containing the labels',
                         default=r'./Annotations')
@@ -33,17 +34,17 @@ def get_args():
                         default=False)
     parser.add_argument("--run_features", type=bool,
                         help='Flag to run feature extraction',
-                        default= True)
+                        default=False)
     parser.add_argument("--only_class", type=str,
                         help='Disease stage only for which features are extracted (i.e., DNV, ADV, DYS, CTL)',
                         default='DYS')
     parser.add_argument("--only_patient", type=str,
                         help='Patient name only for which features are extracted (i.e., PD002, PD003, ...)',
-                        default='PD017')
+                        default='ALL')
     # --------------------------------------------------------------------------------------------------------------
     parser.add_argument("--run_aggregation", type=bool,
                         help='Flag to run data aggregation for dataframe definition (for each subject separately)',
-                        default=False)
+                        default=True)
     parser.add_argument("--aggregate_labels", type=bool,
                         help='Flag to whether consider labels during dataframe definition',
                         default=False)

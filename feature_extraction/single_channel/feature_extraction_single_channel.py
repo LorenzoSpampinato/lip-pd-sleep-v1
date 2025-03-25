@@ -6,7 +6,6 @@ import os
 import matplotlib.pyplot as plt
 import mne
 
-
 class SingleChannelFeatureExtractor:
     def __init__(self, epochs, fs, ch_reg, win_sec=3, save_path=None, only_stage=None, only_patient=None):
         """

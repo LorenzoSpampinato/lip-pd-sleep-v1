@@ -4,138 +4,520 @@ import mne
 from feature_extraction import ChannelConnectivityFeatureExtractor, NetworkFeatureExtractor, SingleChannelFeatureExtractor
 import time
 from utilities import EEGRegionsDivider
+import matplotlib.pyplot as plt
+
 
 class EEGFeatureExtractor:
-    def __init__(self, data_path, label_path, save_path, only_stage=None, only_patient=None):
+    """
+    A class for processing EEG data, segmenting it into epochs, identifying and excluding bad epochs,
+    extracting features, and saving the results.
+
+    Parameters:
+        data_path (str): Path to the directory containing EEG data.
+        label_path (str): Path to the directory containing labels or annotations.
+        save_path (str): Path to the directory for saving processed data and extracted features.
+        only_stage (str, optional): Stage of interest for filtering epochs.
+        only_class (str, optional): Class of interest for filtering.
+        only_patient (str, optional): Specific patient identifier for filtering.
+    """
+
+    def __init__(self, data_path, label_path, save_path, only_stage=None, only_class=None, only_patient=None):
         self.data_path = data_path
         self.label_path = label_path
         self.save_path = save_path
+        self.only_stage = only_stage
+        self.only_class = only_class
+        self.only_patient = only_patient
+
         # Initialize the EEG region divider
         self.divider = EEGRegionsDivider()
         self.regions = self.divider.get_all_regions()
         self.idx_chs = self.divider.get_index_channels()
 
-        # Channel names and reference setup
+        # Channel names based on region indices
         self.names = ['E' + str(idx_ch) for idx_ch in self.idx_chs]
-        self.names[self.names.index('E257')] = 'Vertex Reference'
-        self.only_stage = only_stage
-        self.only_patient = only_patient
 
-
-    def process_and_save_features(self, raw, sub_fold):
-        """Process the raw data to extract features and save them."""
-        # Segment the data into epochs
-        epoched_data = self.segment_epochs(raw)
-
-        epoched_filtered_data = self.filter_epochs(epoched_data, raw)
-
-        # Extract features
-        all_feats, sorted_feats = self.extract_features(epoched_filtered_data, fs=raw.info['sfreq'])
-
-        # Save the extracted features
-        self.save_features(all_feats, sorted_feats, sub_fold)
-
-    def segment_epochs(self, raw):
-        """Segment the EEG data into 30-second epochs."""
-        events = mne.make_fixed_length_events(raw, duration=30.0)
-        return mne.Epochs(raw=raw, events=events, tmin=0.0, tmax=30.0, baseline=None, preload=True, verbose=False)
-
-    def filter_epochs(self, epoched_data, raw):
+    def process_and_save_features(self, sub_fold, preprocessed_raw):
         """
-        Filter the epochs based on clinical scorings using self.only_patient and exclude bad epochs.
+        Process EEG data by segmenting into epochs, identifying bad epochs, filtering,
+        extracting features, and saving the results.
 
         Parameters:
-            epoched_data (mne.Epochs): The segmented EEG data.
-            raw (mne.io.Raw): The raw EEG data containing bad epochs information.
+            sub_fold (str): Path to the specific folder of the dataset being processed.
+            preprocessed_raw (mne.io.Raw): Preprocessed raw EEG data object.
+        """
+        # Validate the input raw object
+        if isinstance(preprocessed_raw, mne.io.Raw):
+            print("The object 'raw' is a valid MNE Raw object.")
+
+        # Step 1: Apply annotations (e.g., bad segments and muscle artifacts)
+        #self.bad_epochs_muscle_flat(preprocessed_raw)
+
+        # Step 2: Segment the data into fixed-length epochs (ignoring annotations)
+        epochs = self.segment_epochs(preprocessed_raw, epoch_duration=30.0)
+
+        # Add bad epochs based on annotations, error folder, or arousals
+        self.add_bad_epochs(preprocessed_raw, bad_epochs_muscle_flat=True, use_error_folder=True, arousals=True,
+                       bad_epochs_amplitude=True)
+
+        # Filter epochs based on clinical scoring and exclude bad epochs
+        filtered_epoched_data, selected_indices, clinical_scores = self.filter_epochs(epochs, preprocessed_raw)
+
+
+        # Save the filtered epochs
+        #self.save_filtered_epochs(filtered_epoched_data, selected_indices, clinical_scores)
+
+        # Extract features from the filtered epochs
+        avg_features, feature_names, raw_features, channel_names, average_channels, specific_channels = self.extract_features(
+            filtered_epoched_data, fs=preprocessed_raw.info['sfreq'], average_channels=False,
+            specific_channels=[27, 33, 34, 38, 39, 47, 48, 26, 20, 19, 12, 11, 3, 2, 222,16, 22, 23, 24, 28, 29, 30, 35, 36, 40, 41, 42, 49, 50, 21, 15, 7, 14, 6,
+                                   207, 13, 5, 215, 4, 224, 223, 214, 206, 213, 205,9, 17, 43, 44, 45, 51, 52, 53, 57, 58, 59, 60, 64, 65, 66, 71, 72, 8,
+                                    81, 186, 198, 197, 185, 132, 196, 184, 144, 204, 195, 183, 155,
+                                   194, 182, 164, 181, 173, 257, 55, 56, 62, 63, 69, 70, 74, 75, 84, 85, 96, 221, 212, 211, 203,
+                                   202, 193, 192, 180, 179, 171, 170, 76, 77, 78, 79, 80, 86, 87, 88, 89, 97, 98, 99, 100, 110, 90,
+                                   101, 119, 172, 163, 154, 143, 131, 162, 153, 142, 130, 161,
+                                   152, 141, 129, 128, 107, 108, 109, 116, 117, 118, 125, 126, 160, 151, 140, 150,
+                                   139, 127, 138])
+
+        # Save the extracted features
+        self.save_features(avg_features, feature_names, raw_features, channel_names, clinical_scores, selected_indices, sub_fold,
+                           average_channels, specific_channels)
+
+
+
+    def segment_epochs(self, preprocessed_raw, epoch_duration=30.0):
+        """
+        Segment EEG data into fixed-length epochs.
+
+        Parameters:
+            preprocessed_raw (mne.io.Raw): Preprocessed raw EEG data.
+            epoch_duration (float): Duration of each epoch in seconds.
+            reject_by_annotation (bool): Whether to reject epochs based on annotations.
 
         Returns:
-            mne.Epochs: Filtered epochs with clinical score '3', excluding bad epochs.
+            mne.Epochs: The segmented EEG data as epochs.
         """
-        # Construct the path to the clinical scoring file
-        clinical_scoring_path = os.path.join(self.label_path, 'clinical_scorings', f'{self.only_patient}.npy')
+        events = mne.make_fixed_length_events(raw=preprocessed_raw, duration=epoch_duration)
+        epochs = mne.Epochs(
+            raw=preprocessed_raw, events=events, tmin=0.0, tmax=epoch_duration,
+            baseline=None, preload=True, verbose=False
+        )
+        print(f"Number of epochs created: {len(epochs)}")
+        return epochs
+
+    def bad_epochs_muscle_flat(self, raw=None, flat=1e-10, min_duration=0.8, threshold_muscle=4):
+        """
+        Identify bad epochs based on amplitude thresholds (flat) and muscle activity,
+        log onset and duration of each epoch, and save combined indices in one file.
+
+        Parameters:
+        - raw: The MNE Raw object to annotate. If None, use self.raw.
+        - flat: Minimum allowable peak-to-peak amplitude (in Volts).
+        - min_duration: Minimum duration for bad segments (in seconds).
+        - threshold_muscle: Z-score threshold for detecting muscle artifacts.
+
+        Returns:
+        - bad_epoch_indices: NumPy array with combined indices of bad epochs.
+        """
+        if raw is None:
+            raw = self.raw
+
+        print("Annotating based on flat and muscle activity")
+
+        # --- Annotate based on amplitude (flat) ---
+        annotations_flat, _ = mne.preprocessing.annotate_amplitude(
+            raw,
+            flat=flat,
+            min_duration=min_duration,
+            picks="eeg"
+        )
+
+        print("Flat-based annotations:")
+        print(annotations_flat)
+
+        # Filter flat annotations with duration > 0.5 seconds
+        bad_flat_epochs = []  # To log onset and duration
+        bad_flat_epoch_indices = []  # To save only indices
+
+        for onset, duration, description in zip(annotations_flat.onset, annotations_flat.duration,
+                                                annotations_flat.description):
+            if duration > 0.5:
+                epoch_index = int(onset // 30)  # Assuming epoch duration = 30 seconds
+                bad_flat_epochs.append([onset, duration, description])
+                bad_flat_epoch_indices.append(epoch_index)
+
+        # --- Annotate based on muscle activity ---
+        annot_muscle, scores_muscle = mne.preprocessing.annotate_muscle_zscore(
+            raw,
+            ch_type="eeg",
+            threshold=threshold_muscle,
+            min_length_good=0.1,
+            filter_freq=[50, 63],
+        )
+
+        print("Muscle activity-based annotations:")
+        print(annot_muscle)
+
+        # Filter muscle annotations with duration > 0.5 seconds
+        bad_muscle_epochs = []  # To log onset and duration
+        bad_muscle_epoch_indices = []  # To save only indices
+
+        for onset, duration, description in zip(annot_muscle.onset, annot_muscle.duration, annot_muscle.description):
+            if duration > 0.5:
+                epoch_index = int(onset // 30)  # Assuming epoch duration = 30 seconds
+                bad_muscle_epochs.append([onset, duration, epoch_index, description])  # Include epoch index
+                bad_muscle_epoch_indices.append(epoch_index)
+
+        # --- Combine and Deduplicate Epoch Indices ---
+        combined_epoch_indices = list(set(bad_flat_epoch_indices + bad_muscle_epoch_indices))
+        combined_epoch_indices.sort()  # Ensure indices are in ascending order
+        combined_epoch_indices = np.array(combined_epoch_indices, dtype=int)
+
+        # --- Log Detailed Information ---
+        print("Filtered bad flat epochs with duration > 0.5 seconds:")
+        for epoch in bad_flat_epochs:
+            print(f"Onset: {epoch[0]:.2f}s, Duration: {epoch[1]:.2f}s, Epoch Index: {int(epoch[0] // 30)}, Description: {epoch[2]}")
+
+        print("Filtered bad muscle epochs with duration > 0.5 seconds:")
+        for epoch in bad_muscle_epochs:
+            print(f"Onset: {epoch[0]:.2f}s, Duration: {epoch[1]:.2f}s, Epoch Index: {epoch[2]}, Description: {epoch[3]}")
+
+        # --- Save Combined Epoch Indices ---
+        export_dir = os.path.join(
+            self.label_path,
+            "clinical_scorings",
+            self.only_class,
+            self.only_patient
+        )
+        os.makedirs(export_dir, exist_ok=True)
+
+        combined_file = os.path.join(export_dir, f"{self.only_patient}EEG_bad_muscle_flat.npy")
+        np.save(combined_file, combined_epoch_indices)
+
+        print(f"Combined bad epoch indices saved to {combined_file}")
+
+        # Return the combined epoch indices
+        return combined_epoch_indices
+
+    def add_bad_epochs(self, preprocessed_raw, bad_epochs_muscle_flat=True, use_error_folder=True, arousals=True,
+                       bad_epochs_amplitude=True):
+        """
+        Identify bad epochs based on muscle/flat annotations, error folders, arousals file, or amplitude-based bad epochs
+        and mark them.
+
+        Parameters:
+            preprocessed_raw (mne.io.Raw): Preprocessed raw EEG data.
+            bad_epochs_muscle_flat (bool): Whether to use muscle/flat-based bad epochs (loaded from EEG_bad_muscle_flat.npy).
+            use_error_folder (bool): Whether to use error folder for identifying bad epochs.
+            arousals (bool): Whether to use arousals file for identifying bad epochs.
+            bad_epochs_amplitude (bool): Whether to use amplitude-based bad epochs (loaded from EEG_bad_epochs.npy).
+        """
+        bad_epochs = []
+
+        # Add bad epochs from muscle/flat annotations if requested
+        if bad_epochs_muscle_flat:
+            print("Using muscle/flat-based annotations to determine bad epochs...")
+            bad_epochs_file = os.path.join(
+                self.label_path, 'clinical_scorings', self.only_class, self.only_patient,
+                f'{self.only_patient}EEG_bad_muscle_flat.npy'
+            )
+            if os.path.exists(bad_epochs_file):
+                try:
+                    bad_epochs_muscle_flat_data = np.load(bad_epochs_file)
+                    bad_epochs.extend(bad_epochs_muscle_flat_data.tolist())
+                    print(
+                        f"Bad epochs from muscle/flat annotations: {bad_epochs_muscle_flat_data}" if bad_epochs_muscle_flat_data.size > 0 else "No bad epochs found in muscle/flat annotations.")
+                except Exception as e:
+                    print(f"Error while loading muscle/flat annotations file: {e}")
+
+        # Add bad epochs from the error folder if requested
+        if use_error_folder:
+            print("Using error folder subdirectories to determine bad epochs...")
+            errors_dir = os.path.join(self.save_path, "PLOT", self.only_class, self.only_patient,
+                                      "ICA0.8_individual_epochs", "errors")
+            if os.path.exists(errors_dir):
+                for subdir in os.listdir(errors_dir):
+                    subdir_path = os.path.join(errors_dir, subdir)
+                    if os.path.isdir(subdir_path) and subdir.startswith("Epoch_"):
+                        try:
+                            epoch_number = int(subdir.split("_")[1])
+                            if epoch_number not in bad_epochs:
+                                bad_epochs.append(epoch_number)
+                        except ValueError:
+                            print(f"Invalid subdirectory name: {subdir}. Could not extract the epoch number.")
+                print(
+                    f"Bad epochs from error folder: {bad_epochs}" if bad_epochs else "No bad epochs found in error folder.")
+
+        # Add bad epochs from arousals file if requested
+        if arousals:
+            print("Using arousals file to determine bad epochs...")
+            clinical_scoring_path = os.path.join(
+                self.label_path, 'clinical_scorings', self.only_class, self.only_patient,
+                f'{self.only_patient}EEG_arousals.npy'
+            )
+            if os.path.exists(clinical_scoring_path):
+                try:
+                    epoch_classifications = np.load(clinical_scoring_path)
+                    bad_epochs_arousals = np.where(epoch_classifications == 1)[0]
+                    bad_epochs.extend(bad_epochs_arousals.tolist())
+                    print(
+                        f"Bad epochs from arousals file: {bad_epochs_arousals}" if bad_epochs_arousals.size > 0 else "No bad epochs found in arousals file.")
+                except Exception as e:
+                    print(f"Error while loading arousals file: {e}")
+
+        # Add bad epochs from amplitude-based file if requested
+        if bad_epochs_amplitude:
+            print("Using amplitude-based bad epochs from EEG_bad_epochs.npy...")
+            bad_epochs_file = os.path.join(
+                self.label_path, 'clinical_scorings', self.only_class, self.only_patient,
+                f'{self.only_patient}EEG_bad_epochs.npy'
+            )
+            if os.path.exists(bad_epochs_file):
+                try:
+                    bad_epochs_amplitude_data = np.load(bad_epochs_file)
+                    bad_epochs.extend(bad_epochs_amplitude_data.tolist())
+                    print(
+                        f"Bad epochs from amplitude file: {bad_epochs_amplitude_data}" if bad_epochs_amplitude_data.size > 0 else "No bad epochs found in amplitude file.")
+                except Exception as e:
+                    print(f"Error while loading amplitude bad epochs file: {e}")
+
+        # Update the raw object with the list of bad epochs
+        if bad_epochs:
+            preprocessed_raw._bad_epochs = sorted(set(bad_epochs))
+            print(f"Bad epochs added to raw._bad_epochs: {preprocessed_raw._bad_epochs}")
+        else:
+            print("No bad epochs found.")
+
+    def filter_epochs(self, epochs, preprocessed_raw):
+        """
+        Filter epochs based on clinical scoring and exclude bad epochs.
+
+        Parameters:
+            epochs (mne.Epochs): The segmented EEG data.
+            preprocessed_raw (mne.io.Raw): The raw EEG data.
+
+        Returns:
+            tuple: Filtered epochs, indices of the selected epochs, and clinical scores.
+        """
+        clinical_scoring_path = os.path.join(self.label_path, 'clinical_scorings', self.only_class, self.only_patient,
+                                             f'{self.only_patient}EEG_stages.npy')
         print('clinical_scoring_path:', clinical_scoring_path)
 
-        # Ensure the file exists
+        # Check if the scoring file exists
         if not os.path.exists(clinical_scoring_path):
             raise FileNotFoundError(f"Clinical scoring file not found: {clinical_scoring_path}")
 
         # Load clinical scores
         clinical_scores = np.load(clinical_scoring_path)
-        #print("clinical_scores: ", clinical_scores[0])
-        #print("epoched_data: ", epoched_data[0])
-        # Ensure the number of epochs matches the clinical scoring
-        if len(clinical_scores)-1 != len(epoched_data):
+
+        '''
+        # Validate matching lengths
+        if len(clinical_scores) - 1 != len(epochs):
             raise ValueError(
-                f"Mismatch between number of epochs ({len(epoched_data)}) and clinical scoring entries ({len(clinical_scores)})")
+                f"Mismatch between number of epochs ({len(epochs)}) and clinical scoring entries ({len(clinical_scores)})")
 
-        # Select only the epochs corresponding to clinical score '3'
-        selected_indices = np.where(clinical_scores == 3)[0]
-        print("length pre bad epochs: ", len(selected_indices))
-        print("selected_indices (clinical score '3'):", selected_indices)
+        '''
 
-        print(raw._bad_epochs)
+        # Select indices of epochs with clinical scores '2' or '3' (N2 or N3)
+        selected_indices = np.where(np.isin(clinical_scores, [2, 3]))[0]
+        #selected_indices = np.where(np.isin(clinical_scores, [3]))[0]
+        print("Selected indices (clinical scores '2' or '3'):", selected_indices)
 
-        # Check for bad epochs in raw._bad_epochs if available
-        if hasattr(raw, '_bad_epochs'):
-            bad_epochs = set(raw._bad_epochs)  # Convert to set for efficient lookup
-            print("Bad epochs from raw._bad_epochs:", bad_epochs)
-
-            # Exclude bad epochs from the selected indices
+        # Exclude bad epochs if they are marked in the raw object
+        if hasattr(preprocessed_raw, '_bad_epochs'):
+            bad_epochs = set(preprocessed_raw._bad_epochs)
             selected_indices = [idx for idx in selected_indices if idx not in bad_epochs]
-            print("selected_indices (after excluding bad epochs):", selected_indices)
+            print("Selected indices after excluding bad epochs:", selected_indices)
 
-        # Filter the epoched data to keep only the selected indices
-        filtered_epoched_data = epoched_data[selected_indices]
+        # Filter epochs based on the selected indices
+        filtered_epoched_data = epochs[selected_indices]
+        print(f"Selected {len(selected_indices)} epochs with clinical scores '2' or '3', excluding bad epochs.")
 
-        print(f"Selected {len(selected_indices)} epochs with clinical score '3', excluding bad epochs.")
+        return filtered_epoched_data, selected_indices, clinical_scores
 
-        return filtered_epoched_data, selected_indices
+    def save_filtered_epochs(self, filtered_epoched_data, selected_indices, clinical_scores):
+        """
+        Save filtered EEG epochs and their corresponding visualizations in separate folders for N2 and N3.
 
-    def extract_features(self, epoched_filtered_data, fs):
-        """Extract single-channel, channel-connectivity, and network features with timing for each step."""
+        Parameters:
+            filtered_epoched_data (mne.Epochs): The EEG epochs that passed the filtering criteria.
+            selected_indices (list): The indices of the selected epochs (corresponding to the original epochs).
+            clinical_scores (np.ndarray): The clinical scores for the epochs.
 
+        """
+        # Define the channels to visualize
+        channels_to_plot = ['E26', 'E15', 'E81', 'E101','E137']
+
+        # Define the base path for saving both plots and epochs
+        save_base_path = os.path.join(self.save_path, "PLOT", self.only_class, self.only_patient)
+
+        # Create separate folders for N2 and N3
+        n3_save_path = os.path.join(save_base_path, "N3_EPOCHS_SELECTED")
+        n2_save_path = os.path.join(save_base_path, "N2_EPOCHS_SELECTED")
+
+        os.makedirs(n3_save_path, exist_ok=True)
+        os.makedirs(n2_save_path, exist_ok=True)
+
+        # Internal function for plotting and saving epoch data
+        def plot_and_save(epoch_data, title, save_path, channels_to_plot):
+            """
+            Helper function to create plots for the given epoch and save them to disk.
+
+            Parameters:
+                epoch_data (mne.Epochs): Data for a single epoch to plot.
+                title (str): Title of the plot.
+                save_path (str): Path where the plot will be saved.
+                channels_to_plot (list): List of EEG channels to include in the plot.
+            """
+            time = epoch_data.times  # Time axis in seconds
+
+            # Create subplots for each channel
+            fig, axes = plt.subplots(len(channels_to_plot), 1, figsize=(12, 8), sharex=True)
+            for ch_idx, ax in enumerate(axes):
+                ch_name = channels_to_plot[ch_idx]
+                if ch_name in epoch_data.info['ch_names']:
+                    ch_idx_in_data = epoch_data.info['ch_names'].index(ch_name)
+                    ch_data = epoch_data.get_data()[:, ch_idx_in_data, :]  # Extract channel data
+                    ax.plot(time, ch_data[0].T)
+                    ax.set_title(f"Channel {ch_name}")
+                    ax.set_ylabel("Amplitude (µV)")
+
+            # Add labels and save the figure
+            axes[-1].set_xlabel("Time (s)")
+            fig.suptitle(title, fontsize=16)
+            plt.savefig(save_path)
+            plt.close(fig)
+            print(f"Saved plot to: {save_path}")
+
+        # Save each epoch
+        for idx, epoch_idx in enumerate(selected_indices):
+            epoch_data = filtered_epoched_data.get_data()[idx]
+            clinical_score = clinical_scores[epoch_idx]  # Get the clinical score for this epoch
+
+            # Generate and save the plot for this epoch
+            if clinical_score == 3:
+                # Save to N3 folder
+                png_save_path = os.path.join(n3_save_path, f"epoch_{epoch_idx}.png")
+                title = f"Epoch {epoch_idx} (N3)"
+                plot_and_save(filtered_epoched_data[idx], title, png_save_path, channels_to_plot)
+            elif clinical_score == 2:
+                # Save to N2 folder
+                png_save_path = os.path.join(n2_save_path, f"epoch_{epoch_idx}.png")
+                title = f"Epoch {epoch_idx} (N2)"
+                plot_and_save(filtered_epoched_data[idx], title, png_save_path, channels_to_plot)
+
+    def extract_features(self, filtered_epoched_data, fs, average_channels=False,
+                         specific_channels=None):
+        """
+        Extracts EEG features from filtered epochs.
+
+        Parameters:
+        - filtered_epoched_data (mne.Epochs): The filtered EEG epochs.
+        - fs (int): Sampling frequency.
+        - average_channels (bool): If True, calculates features averaged across channels.
+        - specific_channels (list): List of specific channels to analyze (if None, analyzes all channels).
+
+        Returns:
+        - avg_features (np.ndarray): Matrix of averaged features (if requested).
+        - feature_names (list): Names of the extracted features.
+        - raw_features (np.ndarray): Matrix of raw features for each channel.
+        - channel_names (list): Names of the channels analyzed.
+        - average_channels (bool): Parameter used for feature extraction.
+        - specific_channels (list): List of channels used for feature extraction.
+        """
         print("Extracting features...")
-
-        # Dictionary to store processing times for each feature extraction step
         processing_times = {}
-
-        # Single-channel feature extraction
         start_time = time.time()
-        sc_extractor = SingleChannelFeatureExtractor(epochs=epoched_filtered_data, fs=fs, ch_reg=sorted(self.regions), save_path=self.save_path, only_stage=self.only_stage, only_patient=self.only_patient)
-        feats_m_sc, feats_sc = sc_extractor.extract_features()
+
+        # Create the feature extractor
+        sc_extractor = SingleChannelFeatureExtractor(
+            epochs=filtered_epoched_data,
+            fs=fs,
+            ch_reg=sorted(self.regions),
+            save_path=self.save_path,
+            only_stage=self.only_stage,
+            only_patient=self.only_patient
+        )
+
+        # Extract features
+        avg_features, feature_names, raw_features, channel_names = sc_extractor.extract_features(
+            average_channels=average_channels,
+            specific_channels=specific_channels
+        )
+
+        # Calculate processing time
         processing_times['Single-Channel Feature Extraction'] = time.time() - start_time
+        print(f"Feature extraction completed in {processing_times['Single-Channel Feature Extraction']} seconds.")
 
-        # Channel connectivity feature extraction
-        start_time = time.time()
-        cc_extractor = ChannelConnectivityFeatureExtractor(epochs=epoched_filtered_data, fs=fs, ch_reg=sorted(self.regions))
-        feats_m_cc, feats_cc = cc_extractor.extract_features()
-        processing_times['Channel-Connectivity Feature Extraction'] = time.time() - start_time
+        return avg_features, feature_names, raw_features, channel_names, average_channels, specific_channels
 
-        # Network analysis feature extraction
-        start_time = time.time()
-        net_extractor = NetworkFeatureExtractor(epochs=epoched_filtered_data, ch_reg=sorted(self.regions))
-        feats_m_na, feats_na = net_extractor.extract_features()
-        processing_times['Network Analysis Feature Extraction'] = time.time() - start_time
+    def save_features(self, avg_features, feature_names, raw_features, channel_names, clinical_scores, selected_indices, sub_fold,
+                      average_channels, specific_channels):
+        """
+        Saves extracted features to `.npz` files, adapting filenames based on provided parameters.
 
-        # Combine all features
-        all_feats = np.concatenate([feats_m_sc, feats_m_cc, feats_m_na], axis=1)
-        sorted_feats = sorted(feats_sc + feats_cc + feats_na, key=lambda x: int(x.split()[0]))
-
-        # Print or log the processing times
-        for step, duration in processing_times.items():
-            print(f"{step} took {duration:.2f} seconds.")
-
-        return all_feats, sorted_feats
-
-    def save_features(self, all_feats, sorted_feats, sub_fold):
-        """Save the extracted features to a .npz file."""
+        Parameters:
+        - avg_features (np.ndarray): Matrix of averaged features.
+        - feature_names (list): Names of the extracted features.
+        - raw_features (np.ndarray): Matrix of raw features (per channel).
+        - channel_names (list): Names of the channels used.
+        - selected_indices (list): Indices of the selected epochs.
+        - sub_fold (str): Sub-folder for saving the files.
+        - average_channels (bool): Indicates whether features are averaged.
+        - specific_channels (list): List of specific channels used.
+        """
+        # Identify brain regions from the given regions
         brain_regions = [reg.split('_')[1] for reg in sorted(self.regions)]
-        res_sub_fold = sub_fold.replace(self.data_path, os.path.join(self.save_path, 'Features')).replace('.mff', '')
+
+        # Create the save directory
+        res_sub_fold = sub_fold.replace(self.data_path, os.path.join(self.save_path, 'Features'))
         os.makedirs(res_sub_fold, exist_ok=True)
 
-        np.savez(os.path.join(res_sub_fold, os.path.basename(res_sub_fold) + '_features.npz'),
-                 data=all_feats, feats=sorted_feats, regions=brain_regions)
-        print(f"Features saved for {sub_fold} in {res_sub_fold}")
+        # Build the filename suffix based on parameters
+        avg_suffix = "_mean" if average_channels else "_no_mean"
+        specific_suffix = f"_specific_channels_{len(specific_channels)}" if specific_channels else "_all_channels"
 
+        # Paths for saving files
+        avg_save_path = os.path.join(
+            res_sub_fold,
+            os.path.basename(res_sub_fold) + f'{avg_suffix}_N2N3FILTERS{specific_suffix}.npz'
+        )
+        electrode_save_path = os.path.join(
+            res_sub_fold,
+            os.path.basename(res_sub_fold) + f'_N2N3FILTERS{specific_suffix}.npz'
+        )
+
+        # Determine whether to save brain regions or specific channels
+        avg_file_metadata = {"data": avg_features, "feats": feature_names}
+
+        if not average_channels and specific_channels:
+            avg_file_metadata["channels"] = specific_channels
+        else:
+            avg_file_metadata["regions"] = brain_regions
+
+        avg_file_metadata["selected_indices"] = selected_indices
+
+        # Aggiungi le etichette delle classi cliniche
+        epoch_labels = clinical_scores[selected_indices]
+        avg_file_metadata["epoch_labels"]=epoch_labels
+
+        # Save averaged features
+        np.savez(
+            avg_save_path,
+            **avg_file_metadata
+        )
+        print(f"Mean features saved for {sub_fold} in {avg_save_path}")
+
+        # Save channel-specific features
+        np.savez(
+            electrode_save_path,
+            data=raw_features,
+            feats=feature_names,
+            regions=brain_regions,
+            channels=channel_names,
+            selected_indices=selected_indices,
+            epoch_labels=epoch_labels
+        )
+        print(f"Electrode features saved for {sub_fold} in {electrode_save_path}")
 
 

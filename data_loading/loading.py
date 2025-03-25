@@ -1,8 +1,11 @@
 import numpy as np
-import mne
 import os
 from utilities import EEGRegionsDivider
 import matplotlib.pyplot as plt
+from numba import config
+config.DISABLE_JIT = True
+import mne
+
 
 
 class EEGDataLoader:
@@ -18,19 +21,18 @@ class EEGDataLoader:
 
         # Channel names and reference setup
         self.names = ['E' + str(idx_ch) for idx_ch in self.idx_chs]
-        self.names[self.names.index('E257')] = 'Vertex Reference'
+        #self.names[self.names.index('E257')] = 'Vertex Reference'
 
     def load_and_prepare_data(self, file_path, output_dir, file_name_base):
         """Load, prepare, and export EEG data."""
         #file_path= "D:\TESI\lid-data-samples\lid-data-samples\Dataset\DYS\PD012.mff\PD012_cropped.fif"
         raw = self.load_raw_data(file_path)
-        self.add_bad_epochs(raw, output_dir,file_name_base)
         #self.export_data(raw, output_dir, file_name_base)
         return raw
 
     def load_raw_data(self, file_path):
         """
-        Load EEG data based on the file extension (.set, .fif, or .edf).
+        Load EEG data based on the file extension (.set, .fif, or .mff).
 
         Args:
             file_path (str): Path to the file to load.
@@ -38,24 +40,37 @@ class EEGDataLoader:
         Returns:
             raw (mne.io.Raw): Loaded RAW object.
         """
-        # Controlla l'estensione del file
-        # Ottieni il nome del paziente (es. 'PD036') dalla cartella
+        print(f"Caricamento del file grezzo: {file_path}")
         patient_name = os.path.basename(file_path.rstrip('/'))
 
         # Costruisci i percorsi possibili per diversi formati
-        fif_file = os.path.join(file_path, f"{patient_name}_raw.fif")
-        print('fif_file:', fif_file)
+        fif_file = os.path.join(file_path, f"{patient_name}.fif")
         set_file = os.path.join(file_path, f"{patient_name}.set")
+        mff_file = os.path.join(file_path)
 
         # Prova a caricare il file FIF
         if os.path.exists(fif_file):
             print(f"Caricamento del file FIF per il paziente: {patient_name}")
             raw = mne.io.read_raw_fif(fif_file, preload=True, verbose=False)
+            sfreq = raw.info['sfreq']
+            print(f"La frequenza di campionamento è: {sfreq} Hz")
+            n_times = raw.n_times
+            print(f"Il numero totale di time points è: {n_times}")
+            duration_in_seconds = raw.n_times / raw.info['sfreq']
+            duration_in_hours = duration_in_seconds / 3600
 
-        # Prova a caricare il file SET
+            print(f"La durata totale del segnale è: {duration_in_hours:.2f} ore")
+
+
         elif os.path.exists(set_file):
             print(f"Caricamento del file SET per il paziente: {patient_name}")
             raw = mne.io.read_raw_eeglab(set_file, preload=True, verbose=False)
+            sfreq = raw.info['sfreq']  # Frequenza di campionamento
+            durata_totale_sec = raw.n_times / sfreq  # Durata totale in secondi
+            durata_totale_min = durata_totale_sec / 60  # Durata totale in minuti
+
+            print(f"La frequenza di campionamento è: {sfreq} Hz")
+            print(f"Durata totale del segnale: {durata_totale_min:.2f} minuti")
 
             # Rinomina i canali se necessario
             if all(ch_name.startswith("EEG") and ch_name.split()[-1].isdigit() for ch_name in raw.ch_names):
@@ -63,9 +78,22 @@ class EEGDataLoader:
                 raw.rename_channels(mapping)
                 print("Nomi dei canali aggiornati al formato 'E{numero}'.")
 
+            # Calcolo del numero di epoche da 30 secondi
+            epoch_length_sec = 30  # Durata di ogni epoca in secondi
+            num_epochs = int(np.floor(durata_totale_sec / epoch_length_sec))
+
+            print(f"Numero di epoche di 30 secondi: {num_epochs}")
+
+        # Prova a caricare il file MFF
+        elif os.path.exists(mff_file):
+            print(f"Caricamento del file MFF per il paziente: {patient_name}")
+            raw = mne.io.read_raw_egi(mff_file, preload=True, verbose=False)
+            sfreq = raw.info['sfreq']
+            print(f"La frequenza di campionamento è: {sfreq} Hz")
+
         else:
             raise FileNotFoundError(
-                f"Non è stato trovato alcun file FIF o SET per il paziente: {patient_name} nel percorso: {file_path}")
+                f"Non è stato trovato alcun file FIF, SET o MFF per il paziente: {patient_name} nel percorso: {file_path}")
 
         # Stampa alcune informazioni sul file caricato
         print(f"Numero di punti totali per canale: {raw.n_times}")
@@ -78,9 +106,9 @@ class EEGDataLoader:
         print("Saving raw EEG data plot with subplots...")
 
         # Define channels for visualization and the time range
-        channels_to_plot = ['E27', 'E224', 'E59', 'E55', 'E76', 'E116']
-        start_time = 60*60+60  # seconds
-        duration = 60  # seconds
+        channels_to_plot = ['E36', 'E224', 'E59', 'E183','E116']
+        start_time = 10710  # seconds
+        duration = 30  # seconds
         fs = int(raw.info['sfreq'])  # Sampling frequency
 
         # Calculate start and end indices
@@ -88,7 +116,7 @@ class EEGDataLoader:
         end_idx = start_idx + int(duration * fs)
 
         # Extract data for selected channels and time range
-        data, times = raw.copy().pick_channels(channels_to_plot).get_data(return_times=True)
+        data, times = raw.copy().pick(channels_to_plot).get_data(return_times=True)
         data = data[:, start_idx:end_idx]
         times = times[start_idx:end_idx]
 
@@ -113,43 +141,6 @@ class EEGDataLoader:
         print(f"Raw EEG data plot saved to {raw_plot_path}")
 
         return raw
-
-    import os
-
-    def add_bad_epochs(self, raw, output_dir, file_name_base):
-        """Aggiungi epoche cattive basate sui file .npy nella cartella di errori."""
-        # Imposta la cartella di errori in base al paziente e al gruppo
-        errors_dir = os.path.join(
-            self.save_path, "PLOT", self.only_class, self.only_patient, "ICA_individual_epochs", "errors"
-        )
-
-        if not os.path.exists(errors_dir):
-            print(f"Non sono stati trovati file di errore in {errors_dir}.")
-            return
-
-        # Lista delle epoche cattive
-        bad_epochs = []
-
-        # Itera attraverso i file .npy e prendi il numero dell'epoca
-        for file in os.listdir(errors_dir):
-            if file.endswith(".npy"):
-                # Estrai l'epoca dal nome del file, ad esempio 'epoch_360_data.npy' -> 360
-                epoch_number = int(file.split("_")[1].split(".")[0])
-                bad_epochs.append(epoch_number)
-
-        if bad_epochs:
-            print(f"Epoche cattive trovate: {bad_epochs}")
-
-            # Crea un campo privato '_bad_epochs' per memorizzare le epoche cattive
-            bad_epochs_info = sorted(set(bad_epochs))  # Ordina e rimuovi duplicati
-            raw._bad_epochs = bad_epochs_info
-            print(f"Epoche cattive aggiunte a raw._bad_epochs (privato): {raw._bad_epochs}")
-
-        else:
-            print("Nessuna epoca cattiva trovata.")
-
-        # Salva il raw con il campo privato _bad_epochs
-        self.export_data(raw, output_dir, file_name_base)  # Passa il file_name_base qui
 
     def export_data(self, raw, output_dir, file_name_base, overwrite=True):
         """

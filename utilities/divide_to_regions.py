@@ -8,8 +8,8 @@ class EEGRegionsDivider:
         self.f = np.sort(np.array([16, 22, 23, 24, 28, 29, 30, 35, 36, 40, 41, 42, 49, 50, 21, 15, 7, 14, 6,
                                    207, 13, 5, 215, 4, 224, 223, 214, 206, 213, 205]))
         self.c = np.sort(np.array([9, 17, 43, 44, 45, 51, 52, 53, 57, 58, 59, 60, 64, 65, 66, 71, 72, 8,
-                                   257, 81, 186, 198, 197, 185, 132, 196, 184, 144, 204, 195, 183, 155,
-                                   194, 182, 164, 181, 173]))
+                                    81, 186, 198, 197, 185, 132, 196, 184, 144, 204, 195, 183, 155,
+                                   194, 182, 164, 181, 173, 257])) #E257 removed
         self.t = np.sort(np.array([55, 56, 62, 63, 69, 70, 74, 75, 84, 85, 96, 221, 212, 211, 203,
                                    202, 193, 192, 180, 179, 171, 170]))
         self.p = np.sort(np.array([76, 77, 78, 79, 80, 86, 87, 88, 89, 97, 98, 99, 100, 110, 90,
@@ -23,7 +23,8 @@ class EEGRegionsDivider:
         return [
             f"1_Fp_chs = {self._format_channels(self.fp)}",
             f"2_F_chs = {self._format_channels(self.f)}",
-            f"3_C_chs = {self._format_channels(self.c[:-1])}, Vertex Reference",  # Adds "Vertex Reference"
+            f"3_C_chs = {self._format_channels(self.c[:-1])}",
+            #f"3_C_chs = {self._format_channels(self.c[:-1])}, Vertex Reference",  # Adds "Vertex Reference"
             f"4_T_chs = {self._format_channels(self.t)}",
             f"5_P_chs = {self._format_channels(self.p)}",
             f"6_O_chs = {self._format_channels(self.o)}"
