@@ -70,14 +70,7 @@ class EEGFeatureExtractor:
         # Extract features from the filtered epochs
         avg_features, feature_names, raw_features, channel_names, average_channels, specific_channels = self.extract_features(
             filtered_epoched_data, fs=preprocessed_raw.info['sfreq'], average_channels=False,
-            specific_channels=[27, 33, 34, 38, 39, 47, 48, 26, 20, 19, 12, 11, 3, 2, 222,16, 22, 23, 24, 28, 29, 30, 35, 36, 40, 41, 42, 49, 50, 21, 15, 7, 14, 6,
-                                   207, 13, 5, 215, 4, 224, 223, 214, 206, 213, 205,9, 17, 43, 44, 45, 51, 52, 53, 57, 58, 59, 60, 64, 65, 66, 71, 72, 8,
-                                    81, 186, 198, 197, 185, 132, 196, 184, 144, 204, 195, 183, 155,
-                                   194, 182, 164, 181, 173, 257, 55, 56, 62, 63, 69, 70, 74, 75, 84, 85, 96, 221, 212, 211, 203,
-                                   202, 193, 192, 180, 179, 171, 170, 76, 77, 78, 79, 80, 86, 87, 88, 89, 97, 98, 99, 100, 110, 90,
-                                   101, 119, 172, 163, 154, 143, 131, 162, 153, 142, 130, 161,
-                                   152, 141, 129, 128, 107, 108, 109, 116, 117, 118, 125, 126, 160, 151, 140, 150,
-                                   139, 127, 138])
+            specific_channels=[4, 8, 15, 19, 26, 33, 35, 41, 43, 51, 59, 69, 78, 81, 86, 90, 101, 108, 151, 154, 162, 183, 196, 197, 202, 214])
 
         # Save the extracted features
         self.save_features(avg_features, feature_names, raw_features, channel_names, clinical_scores, selected_indices, sub_fold,
@@ -480,11 +473,11 @@ class EEGFeatureExtractor:
         # Paths for saving files
         avg_save_path = os.path.join(
             res_sub_fold,
-            os.path.basename(res_sub_fold) + f'{avg_suffix}_N2N3FILTERS{specific_suffix}.npz'
+            os.path.basename(res_sub_fold) + f'{avg_suffix}_N2N3justentropy{specific_suffix}.npz'
         )
         electrode_save_path = os.path.join(
             res_sub_fold,
-            os.path.basename(res_sub_fold) + f'_N2N3FILTERS{specific_suffix}.npz'
+            os.path.basename(res_sub_fold) + f'_N2N3justentropy{specific_suffix}.npz'
         )
 
         # Determine whether to save brain regions or specific channels

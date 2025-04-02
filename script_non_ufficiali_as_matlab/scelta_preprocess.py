@@ -2,12 +2,12 @@ import mne
 import matplotlib.pyplot as plt
 
 # Parametri del filtro
-fs = 128  # Frequenza di campionamento in Hz
+fs = 250  # Frequenza di campionamento in Hz
 l_freq = 0.50  # Frequenza di taglio inferiore
 h_freq = 35 # Frequenza di taglio superiore
 fir_window = 'hamming'  # Tipo di finestra
 filter_length='auto'
-l_trans_bandwidth=0.3
+l_trans_bandwidth=0.5
 h_trans_bandwidth='auto'
 fir_design='firwin'
 method='fir'

@@ -1,7 +1,7 @@
 import numpy as np
 
 # Specifica il percorso del file .npy
-npy_file_path = r"C:\Users\Lorenzo\Desktop\sleep_stages_09_12\usleep\PD020_preprocessed.npy"
+npy_file_path = r"D:\TESI\sleep_stages_09_12\clinical_annotations\PD045EEG_stages.npy"
 
 # Carica i dati
 data = np.load(npy_file_path)
@@ -16,7 +16,7 @@ print(f"Forma dei dati: {data.shape}")
 import numpy as np
 
 # Specifica il percorso del file .npy
-npy_file_path = r"C:\Users\Lorenzo\Desktop\sleep_stages_09_12\usleep\PD020_preprocessed.npy"
+npy_file_path = r"D:\TESI\sleep_stages_09_12\clinical_annotations\PD045EEG_stages.npy"
 #npy_file_path = r"C:\Users\Lorenzo\Desktop\sleep_stages_09_12\clinical_annotations\stagesPD020.npy"
 
 # Carica i dati

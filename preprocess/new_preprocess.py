@@ -9,6 +9,7 @@ import time
 from multiprocessing import Pool
 from scipy.interpolate import CubicSpline
 
+
 def process_epoch(epoch, i, epoch_plot_base_dir):
     """
     Apply ICA to a single epoch, remove components, and save plots.
@@ -182,7 +183,8 @@ def process_epoch(epoch, i, epoch_plot_base_dir):
 
 
 class EEGPreprocessor:
-    def __init__(self, raw, data_path, label_path, save_path, run_preprocess=True, run_bad_interpolation=True, only_class=None, only_patient=None):
+    def __init__(self, raw, data_path, label_path, save_path, run_preprocess=True, run_bad_interpolation=True,
+                 only_class=None, only_patient=None):
         """
         Initializes the EEGPreprocessor object with preprocessing parameters.
 
@@ -224,7 +226,7 @@ class EEGPreprocessor:
 
         print("Identifying bad channels")
         self.identify_bad_epochs_and_channels_combined(amplitude_threshold=0.0006, epoch_duration=30.0,
-                                                  max_good_channels_bad=4, max_bad_epochs_ratio=0.2)
+                                                       max_good_channels_bad=4, max_bad_epochs_ratio=0.2)
 
         print("Interpolating bad channels")
         self.interpolate_bad_channels()
@@ -233,13 +235,13 @@ class EEGPreprocessor:
         self.apply_custom_reference()
 
         print("Saving pre-ICA files")
-        #self.save_to_fif_and_set(file_name_base, stage="pre_ICA", overwrite=overwrite)
+        # self.save_to_fif_and_set(file_name_base, stage="pre_ICA", overwrite=overwrite)
 
         print("Segmenting data into 30-second epochs")
-        #self.segment_epochs()
+        # self.segment_epochs()
 
         print("Applying ICA")
-        #self.apply_ica()
+        # self.apply_ica()
 
         print("Saving post-ICA files")
         self.save_to_fif_and_set(file_name_base, stage="_BIN", overwrite=overwrite)
@@ -413,7 +415,7 @@ class EEGPreprocessor:
         os.makedirs(export_dir, exist_ok=True)
 
         # Define file paths for saving bad epochs
-        bad_epochs_file = os.path.join(export_dir, f"{self.only_patient}EEG_bad_epochs_HP 0.8.npy")
+        bad_epochs_file = os.path.join(export_dir, f"{self.only_patient}EEG_bad_epochs_HP 0.5.npy")
 
         # Save the bad epochs to the structured directory
         np.save(bad_epochs_file, np.array(bad_epochs_good_channels))
@@ -422,8 +424,85 @@ class EEGPreprocessor:
         return bad_epochs_info, bad_channels, bad_epochs_good_channels
 
     def interpolate_bad_channels(self):
+
+        # Define channels to plot
+        channels_to_plot = ['E60', 'E78', 'E79', 'E80', 'E89']
+
+        # Directory setup for pre-re-referencing plots
+        patient_plot_dir = os.path.join(self.save_path, "PLOT", self.only_class, self.only_patient)
+        os.makedirs(patient_plot_dir, exist_ok=True)
+
+        epoch_plot_base_dir_pre = os.path.join(patient_plot_dir, "BIN_0.5_Before_interpolating")
+        os.makedirs(epoch_plot_base_dir_pre, exist_ok=True)
+
+        # Segment epochs (before re-referencing)
+        self.segment_epochs()
+
+        def plot_and_save(epoch_data, save_path, channels_to_plot, epoch_idx):
+            """
+            Helper function to plot and save raw data with time in seconds and amplitude in microvolts.
+
+            Parameters:
+            - epoch_data: Array of shape (n_channels, n_times) for the current epoch.
+            - save_path: Path where the plot will be saved.
+            - channels_to_plot: List of channel names to plot.
+            - epoch_idx: Index of the epoch being plotted.
+            """
+
+            # Get the time array in seconds
+            time = self.epochs.times
+
+            # Create the figure and axes
+            fig, axes = plt.subplots(len(channels_to_plot), 1, figsize=(12, 8), sharex=True)
+
+            for ch_idx, ax in enumerate(axes):
+                ch_name = channels_to_plot[ch_idx]
+                if ch_name in self.epochs.info['ch_names']:
+                    # Get the data for the specific channel
+                    ch_idx_in_data = self.epochs.info['ch_names'].index(ch_name)
+                    ch_data = epoch_data[ch_idx_in_data, :]  # Shape: (n_times,)
+
+                    # Convert data from volts to microvolts
+                    ch_data_in_microvolts = ch_data * 1e6
+
+                    # Plot the data
+                    ax.plot(time, ch_data_in_microvolts.T)
+                    ax.set_title(f"Channel {ch_name}")
+                    ax.set_ylabel("Amplitude (µV)")
+
+            # Set x-axis label for the last subplot
+            axes[-1].set_xlabel("Time (s)")
+
+            # Add overall title
+            fig.suptitle(f"Epoch {epoch_idx}", fontsize=16)
+
+            # Save the figure
+            plt.savefig(save_path)
+            plt.close(fig)
+            print(f"Saved plot to: {save_path}")
+
+        # Plot each epoch (before detrending)
+        for epoch_idx, epoch_data in enumerate(self.epochs.get_data()):
+            save_path = os.path.join(epoch_plot_base_dir_pre, f"epoch_{epoch_idx}.png")
+            plot_and_save(epoch_data, save_path, channels_to_plot, epoch_idx)
+
         if self.raw.info['bads'] and self.run_bad_interpolation:
             self.raw.interpolate_bads(method=dict(eeg="spline"), verbose=False)
+
+        # Directory setup for post-re-referencing plots
+        epoch_plot_base_dir_post = os.path.join(patient_plot_dir, "BIN_0.5_After_interpolating")
+        os.makedirs(epoch_plot_base_dir_post, exist_ok=True)
+
+        # Segment epochs (after re-referencing)
+        self.segment_epochs()
+
+        # Plot each epoch (after re-referencing)
+        for epoch_idx, epoch_data in enumerate(self.epochs.get_data()):
+            save_path = os.path.join(epoch_plot_base_dir_post, f"epoch_{epoch_idx}.png")
+            plot_and_save(epoch_data, save_path, channels_to_plot, epoch_idx)
+
+
+
 
     def apply_custom_reference(self):
         """
@@ -440,7 +519,7 @@ class EEGPreprocessor:
         patient_plot_dir = os.path.join(self.save_path, "PLOT", self.only_class, self.only_patient)
         os.makedirs(patient_plot_dir, exist_ok=True)
 
-        epoch_plot_base_dir_pre = os.path.join(patient_plot_dir, "BIN_0.8_Before_re-referencing")
+        epoch_plot_base_dir_pre = os.path.join(patient_plot_dir, "BIN_0.5_Before_re-referencing")
         os.makedirs(epoch_plot_base_dir_pre, exist_ok=True)
 
         # Segment epochs (before re-referencing)
@@ -496,12 +575,12 @@ class EEGPreprocessor:
         print("Pre-re-referencing plotting completed.")
 
         # Apply clipping to data
-        clip_min = -0.0003  # Minimum allowable amplitude in volts
-        clip_max = 0.0003 # Maximum allowable amplitude in volts
+        # clip_min = -0.0003  # Minimum allowable amplitude in volts
+        # clip_max = 0.0003 # Maximum allowable amplitude in volts
 
         # Clip the raw EEG data
-        self.raw._data = np.clip(self.raw._data, clip_min, clip_max)
-        print(f"Clipping applied: values limited to range [{clip_min}, {clip_max}] volts.")
+        # self.raw._data = np.clip(self.raw._data, clip_min, clip_max)
+        # print(f"Clipping applied: values limited to range [{clip_min}, {clip_max}] volts.")
 
         # Find the index of 'Vertex Reference'
         vertex_idx = self.raw.ch_names.index('E257') if 'E257' in self.raw.ch_names else None
@@ -521,7 +600,7 @@ class EEGPreprocessor:
             self.raw._data[vertex_idx] = -avg_signal
 
         # Directory setup for post-re-referencing plots
-        epoch_plot_base_dir_post = os.path.join(patient_plot_dir, "BIN_0.8_After_re-referencing")
+        epoch_plot_base_dir_post = os.path.join(patient_plot_dir, "BIN_0.5_After_bad_re-referencing")
         os.makedirs(epoch_plot_base_dir_post, exist_ok=True)
 
         # Segment epochs (after re-referencing)
@@ -535,55 +614,168 @@ class EEGPreprocessor:
         print("Re-referencing and plotting completed.")
 
     def remove_trend(self):
+
+        print("Applying detrend...")
+
+        # Define channels to plot
+        channels_to_plot = ['E36', 'E224', 'E59', 'E183', 'E116']
+
+        # Directory setup for pre-re-referencing plots
+        patient_plot_dir = os.path.join(self.save_path, "PLOT", self.only_class, self.only_patient)
+        os.makedirs(patient_plot_dir, exist_ok=True)
+
+        epoch_plot_base_dir_pre = os.path.join(patient_plot_dir, "BIN_0.5_Before_detrending")
+        os.makedirs(epoch_plot_base_dir_pre, exist_ok=True)
+
+        # Segment epochs (before re-referencing)
+        self.segment_epochs()
+
+        def plot_and_save(epoch_data, save_path, channels_to_plot, epoch_idx):
+            """
+            Helper function to plot and save raw data with time in seconds and amplitude in microvolts.
+
+            Parameters:
+            - epoch_data: Array of shape (n_channels, n_times) for the current epoch.
+            - save_path: Path where the plot will be saved.
+            - channels_to_plot: List of channel names to plot.
+            - epoch_idx: Index of the epoch being plotted.
+            """
+
+            # Get the time array in seconds
+            time = self.epochs.times
+
+            # Create the figure and axes
+            fig, axes = plt.subplots(len(channels_to_plot), 1, figsize=(12, 8), sharex=True)
+
+            for ch_idx, ax in enumerate(axes):
+                ch_name = channels_to_plot[ch_idx]
+                if ch_name in self.epochs.info['ch_names']:
+                    # Get the data for the specific channel
+                    ch_idx_in_data = self.epochs.info['ch_names'].index(ch_name)
+                    ch_data = epoch_data[ch_idx_in_data, :]  # Shape: (n_times,)
+
+                    # Convert data from volts to microvolts
+                    ch_data_in_microvolts = ch_data * 1e6
+
+                    # Plot the data
+                    ax.plot(time, ch_data_in_microvolts.T)
+                    ax.set_title(f"Channel {ch_name}")
+                    ax.set_ylabel("Amplitude (µV)")
+
+            # Set x-axis label for the last subplot
+            axes[-1].set_xlabel("Time (s)")
+
+            # Add overall title
+            fig.suptitle(f"Epoch {epoch_idx}", fontsize=16)
+
+            # Save the figure
+            plt.savefig(save_path)
+            plt.close(fig)
+            print(f"Saved plot to: {save_path}")
+
+        # Plot each epoch (before detrending)
+        for epoch_idx, epoch_data in enumerate(self.epochs.get_data()):
+            save_path = os.path.join(epoch_plot_base_dir_pre, f"epoch_{epoch_idx}.png")
+            plot_and_save(epoch_data, save_path, channels_to_plot, epoch_idx)
+
+        print("Pre-re-referencing plotting completed.")
         data, _ = self.raw[:, :]
         self.raw._data = detrend(data, axis=1)
 
-    def filter_data(self, l_freq=0.8, h_freq=35, l_trans_bandwidth=0.3):
+        # Directory setup for post-re-referencing plots
+        epoch_plot_base_dir_post = os.path.join(patient_plot_dir, "BIN_0.5_After_detrending")
+        os.makedirs(epoch_plot_base_dir_post, exist_ok=True)
+
+        # Segment epochs (after re-referencing)
+        self.segment_epochs()
+
+        # Plot each epoch (after re-referencing)
+        for epoch_idx, epoch_data in enumerate(self.epochs.get_data()):
+            save_path = os.path.join(epoch_plot_base_dir_post, f"epoch_{epoch_idx}.png")
+            plot_and_save(epoch_data, save_path, channels_to_plot, epoch_idx)
+
+    def filter_data(self, l_freq=0.5, h_freq=35, l_trans_bandwidth=0.3):
         """
         Apply bandpass filtering to the EEG data and save plots of the filtered signal with separate subplots for each channel.
         """
+        print("Applying filtering...")
 
-        self.raw.filter(l_freq=l_freq, h_freq=h_freq, method='fir', l_trans_bandwidth=l_trans_bandwidth, fir_window='hamming', fir_design='firwin',
+        # Define channels to plot
+        channels_to_plot = ['E36', 'E224', 'E59', 'E183', 'E116']
+
+        # Directory setup for pre-re-referencing plots
+        patient_plot_dir = os.path.join(self.save_path, "PLOT", self.only_class, self.only_patient)
+        os.makedirs(patient_plot_dir, exist_ok=True)
+
+        epoch_plot_base_dir_pre = os.path.join(patient_plot_dir, "BIN_0.5_Before_filtering")
+        os.makedirs(epoch_plot_base_dir_pre, exist_ok=True)
+
+        # Segment epochs (before re-referencing)
+        self.segment_epochs()
+
+        def plot_and_save(epoch_data, save_path, channels_to_plot, epoch_idx):
+            """
+            Helper function to plot and save raw data with time in seconds and amplitude in microvolts.
+
+            Parameters:
+            - epoch_data: Array of shape (n_channels, n_times) for the current epoch.
+            - save_path: Path where the plot will be saved.
+            - channels_to_plot: List of channel names to plot.
+            - epoch_idx: Index of the epoch being plotted.
+            """
+
+            # Get the time array in seconds
+            time = self.epochs.times
+
+            # Create the figure and axes
+            fig, axes = plt.subplots(len(channels_to_plot), 1, figsize=(12, 8), sharex=True)
+
+            for ch_idx, ax in enumerate(axes):
+                ch_name = channels_to_plot[ch_idx]
+                if ch_name in self.epochs.info['ch_names']:
+                    # Get the data for the specific channel
+                    ch_idx_in_data = self.epochs.info['ch_names'].index(ch_name)
+                    ch_data = epoch_data[ch_idx_in_data, :]  # Shape: (n_times,)
+
+                    # Convert data from volts to microvolts
+                    ch_data_in_microvolts = ch_data * 1e6
+
+                    # Plot the data
+                    ax.plot(time, ch_data_in_microvolts.T)
+                    ax.set_title(f"Channel {ch_name}")
+                    ax.set_ylabel("Amplitude (µV)")
+
+            # Set x-axis label for the last subplot
+            axes[-1].set_xlabel("Time (s)")
+
+            # Add overall title
+            fig.suptitle(f"Epoch {epoch_idx}", fontsize=16)
+
+            # Save the figure
+            plt.savefig(save_path)
+            plt.close(fig)
+            print(f"Saved plot to: {save_path}")
+
+        # Plot each epoch (before detrending)
+        for epoch_idx, epoch_data in enumerate(self.epochs.get_data()):
+            save_path = os.path.join(epoch_plot_base_dir_pre, f"epoch_{epoch_idx}.png")
+            plot_and_save(epoch_data, save_path, channels_to_plot, epoch_idx)
+
+        self.raw.filter(l_freq=l_freq, h_freq=h_freq, method='fir', l_trans_bandwidth=l_trans_bandwidth,
+                        fir_window='hamming', fir_design='firwin',
                         verbose=False)
 
-        # Create a directory to save plots
-        plot_dir = os.path.join(self.save_path, "PLOT", self.only_class, self.only_patient)
-        os.makedirs(plot_dir, exist_ok=True)
+        # Directory setup for post-re-referencing plots
+        epoch_plot_base_dir_post = os.path.join(patient_plot_dir, "BIN_0.5_After_filtering")
+        os.makedirs(epoch_plot_base_dir_post, exist_ok=True)
 
-        print("Saving filtered EEG data plot with subplots using matplotlib...")
+        # Segment epochs (after re-referencing)
+        self.segment_epochs()
 
-        # Define channels for visualization and the time range
-        channels_to_plot = ['E36', 'E224', 'E59', 'E183','E116']
-        start_time = 10710  # seconds
-        duration = 30  # seconds
-        fs = int(self.raw.info['sfreq'])  # Sampling frequency
-
-        # Calculate start and end indices
-        start_idx = int(start_time * fs)
-        end_idx = start_idx + int(duration * fs)
-        data, times = self.raw.copy().pick(channels_to_plot).get_data(return_times=True)
-        data = data[:, start_idx:end_idx]
-        times = times[start_idx:end_idx]
-
-        # Create subplots
-        fig, axes = plt.subplots(len(channels_to_plot), 1, figsize=(12, 2 * len(channels_to_plot)), sharex=True)
-
-        for i, ax in enumerate(axes):
-            ax.plot(times, data[i] * 1e6)  # Scale signal to µV
-            ax.set_title(f"Channel: {channels_to_plot[i]}")
-            ax.set_ylabel("Amplitude (µV)")
-            ax.grid(True)
-
-        # Set the x-label for the last subplot
-        axes[-1].set_xlabel("Time (s)")
-
-        # Adjust layout and save the figure
-        plt.tight_layout()
-        filtered_plot_path = os.path.join(plot_dir, "filtered_data_plot_subplots.png")
-        plt.savefig(filtered_plot_path)
-        plt.close()
-
-        print(f"Filtered EEG data plot saved to {filtered_plot_path}")
+        # Plot each epoch (after re-referencing)
+        for epoch_idx, epoch_data in enumerate(self.epochs.get_data()):
+            save_path = os.path.join(epoch_plot_base_dir_post, f"epoch_{epoch_idx}.png")
+            plot_and_save(epoch_data, save_path, channels_to_plot, epoch_idx)
 
         return self.raw
 
@@ -602,7 +794,8 @@ class EEGPreprocessor:
     def segment_epochs(self, epoch_duration=30.0):
         """Segment the EEG data into fixed-length epochs."""
         events = mne.make_fixed_length_events(self.raw, duration=epoch_duration)
-        self.epochs = mne.Epochs(self.raw, events, tmin=0.0, tmax=epoch_duration, baseline=None, preload=True, verbose=False)
+        self.epochs = mne.Epochs(self.raw, events, tmin=0.0, tmax=epoch_duration, baseline=None, preload=True,
+                                 verbose=False)
         num_epochs = len(self.epochs)
         print(f"Number of epochs created: {num_epochs}")
         return self.epochs
@@ -703,7 +896,6 @@ class EEGPreprocessor:
         # Return the modified Raw object with the concatenated data
         return self.raw
 
-
     def convert_to_microvolt(self, raw=None):
         """
         Convert the EEG data from volts to microvolts and update metadata accordingly.
@@ -764,7 +956,6 @@ class EEGPreprocessor:
         except Exception as e:
             print(f"Error saving processed EEG data to .fif: {e}")
             return  # Exit early if saving to .fif fails
-
 
         # Reload the .fif file to ensure compatibility with EEGLAB export
         try:
